@@ -1,0 +1,23 @@
+[
+  {
+    "id": "Warranty-Tool",
+    "name": "Warranty Upsell Tracker",
+    "version": "2.0.0",
+    "url": "Plugins/Warranty-Tool/popup.html",
+    "icon": "Plugins/Warranty-Tool/icons/icon16.png"
+  },
+  {
+    "id": "metapcs-toolbox",
+    "name": "META PC Toolbox",
+    "version": "1.1.0",
+    "url": "Plugins/metapcs-toolbox/popup.html",
+    "icon": "Plugins/metapcs-toolbox/icons/icon16.png"
+  },
+  {
+    "id": "techbay-planner-plugin",
+    "name": "Work Order Assistant",
+    "version": "1.0.0",
+    "url": "Plugins/techbay-planner-plugin/popup.html",
+    "icon": "Plugins/techbay-planner-plugin/icons/icon16.png"
+  }
+]

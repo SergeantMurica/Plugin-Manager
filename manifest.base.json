@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Plugin Manager",
+  "version": "1.0.0",
+  "description": "Tabbed host for every plugin in the Plugins folder.",
+  "permissions": ["sidePanel", "storage"],
+  "action": { "default_title": "Plugin Manager" },
+  "side_panel": { "default_path": "panel.html" },
+  "background": { "service_worker": "background.js" },
+  "icons": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+}
