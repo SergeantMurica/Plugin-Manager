@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pound List Tool</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand-logo-container">
+        <img class="brand-logo" src="icons/icon128.png" alt="Pound List Tool logo" />
+      </div>
+      <h1>Pound List Tool</h1>
+      <span class="count"><span id="count">0 worked today</span> · <span id="repLabel"></span></span>
+    </header>
+
+    <p class="claim" id="claim" role="status" hidden></p>
+
+    <form id="lead" autocomplete="off" novalidate>
+      <div class="lead-top">
+        <span class="tag" id="leadId">No lead open</span>
+        <select id="type" class="chip" aria-label="Lead type"></select>
+        <button type="button" id="readPage" class="ghost small" title="Reload details from the open Dash lead">↻ Read page</button>
+      </div>
+      <div class="row">
+        <label class="field">
+          <span>Customer</span>
+          <input id="customer" type="text" placeholder="e.g. Tammy Johnson" />
+        </label>
+        <label class="field">
+          <span>Phone</span>
+          <input id="phone" type="tel" inputmode="tel" placeholder="(555) 123-4567" />
+        </label>
+      </div>
+      <div class="row">
+        <label class="field">
+          <span>Email <em>optional</em></span>
+          <input id="email" type="email" placeholder="name@email.com" />
+        </label>
+        <label class="field">
+          <span>Order <em>optional</em></span>
+          <input id="order" type="text" placeholder="MPC2635926" />
+        </label>
+      </div>
+      <div class="row" data-for="financing">
+        <label class="field">
+          <span>Lender</span>
+          <input id="lender" type="text" placeholder="e.g. Progressive" />
+        </label>
+        <label class="field">
+          <span>Approved</span>
+          <input id="amount" type="text" inputmode="decimal" placeholder="e.g. 1,050.00" />
+        </label>
+      </div>
+      <div class="row" data-for="financing warranty">
+        <label class="field">
+          <span>System price <em>for warranty $</em></span>
+          <input id="systemPrice" type="number" min="0" step="0.01" inputmode="decimal" placeholder="e.g. 3150" />
+        </label>
+        <div class="field">
+          <span>&nbsp;</span>
+          <label class="toggle" title="Watercooled pricing: 2-yr $499 · 3-yr $799">
+            <input id="watercooled" type="checkbox" />
+            Watercooled
+          </label>
+        </div>
+      </div>
+
+      <div class="wt" id="wtBox" data-for="warranty" hidden>
+        <p class="hint" id="wtHint" role="status" hidden></p>
+        <div class="actions">
+          <select id="wtStatus" class="chip" aria-label="Warranty Tool status"></select>
+          <button type="button" id="wtLog" class="primary">Log in Warranty Tool</button>
+          <button type="button" id="wtOpen" class="ghost" title="Prefill and open the Warranty Upsell Tracker tab">Open ↗</button>
+        </div>
+      </div>
+      <p class="error" id="error" role="alert" hidden></p>
+    </form>
+
+    <section class="card ctt">
+      <div class="card-head">
+        <h2>Call · Text · Ticket</h2>
+        <label class="mini" title="Also mark this step on the Dash lead">
+          <input id="tickDash" type="checkbox" checked /> Tick on Dash
+        </label>
+      </div>
+      <div class="steps" id="steps"></div>
+      <p class="tip" id="cttTip"></p>
+    </section>
+
+    <section class="card">
+      <div class="tabs-main" id="scriptTabs" role="tablist" aria-label="Scripts"></div>
+      <div class="script-tools" id="scriptTools"></div>
+      <div class="script" id="script"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Activity note</h2>
+        <select id="outcome" class="chip" aria-label="Outcome"></select>
+      </div>
+      <textarea id="note" rows="3" spellcheck="true"></textarea>
+      <div class="actions">
+        <button type="button" id="noteReset" class="ghost" title="Rebuild the note from the CTT steps">↺</button>
+        <button type="button" id="noteCopy" class="ghost">Copy</button>
+        <button type="button" id="noteFill" class="primary">Add to Dash note</button>
+      </div>
+    </section>
+
+    <section class="log">
+      <div class="tabs-main" id="logTabs" role="tablist" aria-label="Filter">
+        <button type="button" class="tab" data-filter="today" role="tab"><span class="tab-name">Today</span> <b id="nToday">0</b></button>
+        <button type="button" class="tab" data-filter="all" role="tab"><span class="tab-name">All</span> <b id="nAll">0</b></button>
+      </div>
+      <input id="search" type="search" placeholder="Search customer, phone, order or WL #" />
+      <div class="scroll" id="scroll">
+        <div id="list"></div>
+        <p class="empty" id="empty">No leads worked yet.</p>
+      </div>
+      <details class="settings">
+        <summary>Settings</summary>
+        <div class="row">
+          <label class="field">
+            <span>Your name <em>used in scripts</em></span>
+            <input id="rep" type="text" placeholder="e.g. Alex" />
+          </label>
+          <label class="field">
+            <span>Callback # <em>optional</em></span>
+            <input id="callback" type="tel" placeholder="(555) 123-4567" />
+          </label>
+        </div>
+      </details>
+      <footer class="foot">
+        <select class="theme-select" aria-label="Color theme"></select>
+        <div class="foot-actions">
+          <button type="button" id="export" class="link">Export CSV</button>
+          <button type="button" id="clearOld" class="link danger">Clear log</button>
+        </div>
+      </footer>
+    </section>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

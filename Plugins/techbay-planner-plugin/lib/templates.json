@@ -1,0 +1,2145 @@
+{
+  "fileDescription": [
+    "Service templates for desktop and laptop computer work.",
+    "Use sharedWorkflow with the selected component service. Record the result of each step, not just whether it was checked.",
+    "Only show service types present on a component. Update and maintenance are additional service types that the application must support."
+  ],
+  "serviceTypeLabels": {
+    "diagnostic": "Diagnostic",
+    "repair": "Repair",
+    "upgrade": "Upgrade",
+    "update": "Update",
+    "maintenance": "Maintenance"
+  },
+  "stepTracking": {
+    "statuses": ["notStarted", "completed", "skipped", "blocked"],
+    "requiredResultFields": ["status", "technicianNote"],
+    "testResultFields": [
+      "testName",
+      "measuredValue",
+      "unit",
+      "duration",
+      "result"
+    ],
+    "nextStepFields": [
+      "recommendedAction",
+      "quotedScope",
+      "estimatedLabor",
+      "estimatedParts",
+      "customerDecision"
+    ],
+    "rules": [
+      "When a primary fault is found, assess what else it may have damaged before quoting. Record each part as confirmed damaged, tested good, or not yet tested.",
+      "Record recommended next steps with a quoted scope (labor and parts) as part of the diagnostic outcome.",
+      "A completed step must describe what was actually done or observed.",
+      "A skipped or blocked step must include a reason.",
+      "Record actual readings and test durations when available. Do not invent them.",
+      "Record the original and replacement part details when a part is changed.",
+      "Do not mark a service complete until its final verification has been performed or documented as blocked."
+    ]
+  },
+  "jobRecordFields": [
+    "customerConcern",
+    "deviceMakeModel",
+    "serialNumber",
+    "initialCondition",
+    "customerApproval",
+    "backupInstructions",
+    "dataAccessLimitations",
+    "partsUsed",
+    "workPerformed",
+    "testResults",
+    "unresolvedIssues",
+    "collateralDamageFindings",
+    "recommendedNextSteps",
+    "quotedScope",
+    "customerSummary",
+    "technician",
+    "completedAt"
+  ],
+  "sharedWorkflow": {
+    "intake": [
+      {
+        "title": "Record the customer's symptoms and when they occur"
+      },
+      {
+        "title": "Record the device model, identifying details, and visible damage"
+      },
+      {
+        "title": "Confirm the approved work, data handling, and backup instructions"
+      }
+    ],
+    "beforeOpening": [
+      {
+        "title": "Shut down and disconnect external power"
+      },
+      {
+        "title": "Follow model-specific battery and electrical safety instructions"
+      },
+      {
+        "title": "Photograph cable placement or damage when it will help reassembly"
+      }
+    ],
+    "closeout": [
+      {
+        "title": "Record recommended next steps with a quoted scope of labor and parts"
+      },
+      {
+        "title": "Record parts installed, settings changed, and tests performed"
+      },
+      {
+        "title": "Record remaining issues and any tests that could not be performed"
+      },
+      {
+        "title": "Write a plain-language customer summary of the result"
+      }
+    ]
+  },
+  "desktopComponentTemplates": [
+    {
+      "id": "power-supply",
+      "label": "Power Supply",
+      "order": 10,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll find out whether the power supply or its connections are causing power problems.",
+          "steps": [
+            {
+              "title": "Record what happens when the power button is pressed"
+            },
+            {
+              "title": "Check the outlet, external power cable, and power switch"
+            },
+            {
+              "title": "Inspect external power connections for damage or looseness"
+            },
+            {
+              "title": "Check internal power connections with power disconnected"
+            },
+            {
+              "title": "Test with an approved tester or known-good compatible power supply"
+            },
+            {
+              "title": "Record the test method, result, and most likely cause"
+            },
+            {
+              "title": "If the supply failed, assess motherboard, RAM, CPU, GPU, and drives for collateral damage"
+            },
+            {
+              "title": "Quote the repair scope: added labor plus parts for each damaged component"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll correct power connections or replace a failed power supply.",
+          "steps": [
+            {
+              "title": "Disconnect wall power and confirm the replacement is compatible"
+            },
+            {
+              "title": "Replace damaged external or internal power cables"
+            },
+            {
+              "title": "Replace the power supply if testing shows it has failed"
+            },
+            {
+              "title": "Use only modular cables approved for that exact power supply"
+            },
+            {
+              "title": "Check startup, shutdown, and operation under normal use"
+            }
+          ]
+        },
+        "upgrade": {
+          "description": "We’ll install a compatible power supply for the system’s planned hardware.",
+          "steps": [
+            {
+              "title": "Confirm wattage, connectors, case fit, and power requirements"
+            },
+            {
+              "title": "Remove the old supply and all of its modular cables"
+            },
+            {
+              "title": "Install the new supply with its approved cables"
+            },
+            {
+              "title": "Check all connections before applying power"
+            },
+            {
+              "title": "Record the model and test startup and normal use"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "motherboard",
+      "label": "Motherboard",
+      "order": 20,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll narrow down startup, connection, and motherboard faults.",
+          "steps": [
+            {
+              "title": "Inspect for corrosion, burnt areas, and bent, missing, or pushed-in CPU socket pins"
+            },
+            {
+              "title": "If socket pins are damaged, stop and follow the physical damage path"
+            },
+            {
+              "title": "Record startup lights, display behavior, and beep codes"
+            },
+            {
+              "title": "Check power, RAM, graphics, and front-panel connections"
+            },
+            {
+              "title": "Test with only essential parts connected when appropriate"
+            },
+            {
+              "title": "For severe or unknown-cause failures, use the out-of-case test"
+            },
+            {
+              "title": "Record which parts and connections were ruled out"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll correct serviceable connection faults or replace a failed motherboard.",
+          "steps": [
+            {
+              "title": "Confirm the fault and the approved repair"
+            },
+            {
+              "title": "Reseat or replace damaged removable connections as needed"
+            },
+            {
+              "title": "Replace a failed CMOS battery if indicated"
+            },
+            {
+              "title": "Replace the motherboard if repairable parts are not the cause"
+            },
+            {
+              "title": "Check startup, ports, storage, and system stability"
+            }
+          ]
+        },
+        "upgrade": {
+          "description": "We’ll install a motherboard that supports the approved hardware and features.",
+          "steps": [
+            {
+              "title": "Confirm CPU, RAM, cooler, case, storage, and power compatibility"
+            },
+            {
+              "title": "Confirm backup instructions and verify the recovery key if encrypted"
+            },
+            {
+              "title": "Install the new board and reconnect components"
+            },
+            {
+              "title": "Check firmware settings, boot, and required drivers"
+            },
+            {
+              "title": "Record activation status and test ports and network access"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ram",
+      "label": "RAM",
+      "order": 30,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll check whether memory or its settings are causing crashes or startup failures.",
+          "steps": [
+            {
+              "title": "Record installed memory and whether BIOS detects it"
+            },
+            {
+              "title": "Check seating and the motherboard-recommended slots"
+            },
+            {
+              "title": "Test individual sticks and slots when needed"
+            },
+            {
+              "title": "Try safe memory settings if the system is unstable"
+            },
+            {
+              "title": "Run a memory test and record passes, errors, and duration"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll correct memory installation or settings and replace failed RAM.",
+          "steps": [
+            {
+              "title": "Reseat RAM with the computer disconnected from power"
+            },
+            {
+              "title": "Restore stable memory settings if needed"
+            },
+            {
+              "title": "Replace confirmed failed RAM with compatible memory"
+            },
+            {
+              "title": "Check detected capacity and rerun the memory test"
+            }
+          ]
+        },
+        "upgrade": {
+          "description": "We’ll install compatible memory to increase available RAM.",
+          "steps": [
+            {
+              "title": "Confirm memory type, capacity limits, and supported slots"
+            },
+            {
+              "title": "Install a compatible kit in the recommended slots"
+            },
+            {
+              "title": "Confirm the detected capacity"
+            },
+            {
+              "title": "Enable XMP or EXPO only if supported and stable"
+            },
+            {
+              "title": "Record the final speed and memory-test result"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cpu",
+      "label": "CPU",
+      "order": 40,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll check processor detection, temperature, and stability.",
+          "steps": [
+            {
+              "title": "Record the CPU model and firmware-reported settings"
+            },
+            {
+              "title": "Inspect the socket and CPU for visible damage if removal is needed"
+            },
+            {
+              "title": "Check cooler operation and idle temperature"
+            },
+            {
+              "title": "Review crashes or shutdowns reported under load"
+            },
+            {
+              "title": "Run a monitored test only while temperatures remain safe"
+            },
+            {
+              "title": "Record temperatures, test duration, and errors"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll address serviceable CPU installation or cooling problems.",
+          "steps": [
+            {
+              "title": "Confirm whether the fault is cooling, installation, or compatibility"
+            },
+            {
+              "title": "Inspect the socket and CPU for visible damage if removal is needed"
+            },
+            {
+              "title": "Correct the installation or cooler mounting"
+            },
+            {
+              "title": "Apply fresh thermal interface material if the cooler was removed"
+            },
+            {
+              "title": "Record idle and monitored load temperatures after repair"
+            }
+          ]
+        },
+        "upgrade": {
+          "description": "We’ll install a compatible processor and verify cooling and stability.",
+          "steps": [
+            {
+              "title": "Confirm socket, firmware, cooling, and power compatibility"
+            },
+            {
+              "title": "Update firmware first only if required and separately approved"
+            },
+            {
+              "title": "Install the CPU and cooler with fresh thermal interface material"
+            },
+            {
+              "title": "Check detection, temperatures, and a monitored stability test"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "gpu",
+      "label": "Graphics Card",
+      "order": 50,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll check display connections, graphics hardware, drivers, and stability.",
+          "steps": [
+            {
+              "title": "Check monitor input, cables, and graphics card output"
+            },
+            {
+              "title": "Check card seating and required power connections"
+            },
+            {
+              "title": "Check driver errors and test another output when available"
+            },
+            {
+              "title": "Run a monitored graphics test if the system is stable enough"
+            },
+            {
+              "title": "Record artifacts, temperature, errors, and test duration"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll correct serviceable graphics card connections, cooling, or driver issues.",
+          "steps": [
+            {
+              "title": "Reseat the card and check its power connections"
+            },
+            {
+              "title": "Clean accessible dust and replace a serviceable failed fan if needed"
+            },
+            {
+              "title": "Reinstall the graphics driver if a software fault is indicated"
+            },
+            {
+              "title": "Recommend card replacement or specialist repair for board faults"
+            },
+            {
+              "title": "Record display output and monitored test results"
+            }
+          ]
+        },
+        "upgrade": {
+          "description": "We’ll install a compatible graphics card and test it.",
+          "steps": [
+            {
+              "title": "Confirm case clearance, power capacity, connectors, and PCIe slot"
+            },
+            {
+              "title": "Install the card and connect its required power cables"
+            },
+            {
+              "title": "Install the appropriate driver"
+            },
+            {
+              "title": "Check each required display and run a monitored graphics test"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "storage",
+      "label": "Storage Drive",
+      "order": 60,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll check drive detection, health, and access to files.",
+          "steps": [
+            {
+              "title": "Record the drive model, capacity, and reported symptoms"
+            },
+            {
+              "title": "Check detection and connections"
+            },
+            {
+              "title": "Review SMART or manufacturer health information"
+            },
+            {
+              "title": "Avoid extended scans if failure signs put data at risk"
+            },
+            {
+              "title": "Record health results and the backup or recovery recommendation"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll correct storage connections, approved boot problems, or a failed drive.",
+          "steps": [
+            {
+              "title": "Confirm backup instructions before making changes"
+            },
+            {
+              "title": "Reseat the drive or replace a faulty removable cable"
+            },
+            {
+              "title": "Repair boot files only with approval"
+            },
+            {
+              "title": "Replace a failed drive and restore approved data if available"
+            },
+            {
+              "title": "Record boot and file-access results"
+            }
+          ]
+        },
+        "upgrade": {
+          "description": "We’ll install a compatible drive with the approved data-migration plan.",
+          "steps": [
+            {
+              "title": "Confirm drive form factor, interface, and capacity support"
+            },
+            {
+              "title": "Confirm backup, cloning, or reinstall instructions"
+            },
+            {
+              "title": "Install the new drive and complete the approved migration"
+            },
+            {
+              "title": "Check boot order, capacity, health, and file access"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "windows",
+      "label": "Windows",
+      "order": 70,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll identify Windows startup, driver, update, or software problems.",
+          "steps": [
+            {
+              "title": "Record symptoms and recent changes"
+            },
+            {
+              "title": "Check startup, Device Manager, and relevant error records"
+            },
+            {
+              "title": "Check storage health before extensive repair attempts"
+            },
+            {
+              "title": "Use recovery media when needed without changing data"
+            },
+            {
+              "title": "Record the likely cause and recommended next step"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll perform approved repairs to Windows and its drivers.",
+          "steps": [
+            {
+              "title": "Confirm backup instructions and recovery-key access"
+            },
+            {
+              "title": "Repair startup or system files as indicated"
+            },
+            {
+              "title": "Remove or correct the identified software or driver fault"
+            },
+            {
+              "title": "Install approved updates and required drivers"
+            },
+            {
+              "title": "Record startup, device, activation, and normal-use results"
+            }
+          ]
+        },
+        "upgrade": {
+          "description": "We’ll move to an approved, supported Windows installation.",
+          "steps": [
+            {
+              "title": "Confirm device support, license, backup, and customer approval"
+            },
+            {
+              "title": "Verify recovery-key access before changing encrypted storage"
+            },
+            {
+              "title": "Perform the approved upgrade or reinstall"
+            },
+            {
+              "title": "Install required drivers, updates, and approved software"
+            },
+            {
+              "title": "Record activation, file access, startup, and device tests"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "windows-reinstall",
+      "label": "Windows Reimage / Reinstall",
+      "order": 72,
+      "services": {
+        "repair": {
+          "description": "We’ll reinstall or reimage Windows when repair is not practical.",
+          "steps": [
+            {
+              "title": "Confirm customer approval, license, and that data loss is understood"
+            },
+            {
+              "title": "Back up or clone the drive (for example with Clonezilla) and verify the image"
+            },
+            {
+              "title": "Verify recovery-key access before changing encrypted storage"
+            },
+            {
+              "title": "Choose and record the method: reset, clean reinstall, or restore image"
+            },
+            {
+              "title": "Install drivers, updates, and approved software"
+            },
+            {
+              "title": "Restore approved data and record activation, startup, and device results"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "windows-maintenance",
+      "label": "Windows Maintenance and Virtual Memory",
+      "order": 73,
+      "services": {
+        "maintenance": {
+          "description": "We’ll tune Windows settings such as the page file and startup load.",
+          "steps": [
+            {
+              "title": "Record installed RAM, free disk space, and memory-related symptoms"
+            },
+            {
+              "title": "Check page file (virtual memory) size and location; restore system-managed sizing if altered"
+            },
+            {
+              "title": "Review startup programs, pending updates, and disk cleanup needs"
+            },
+            {
+              "title": "Record settings changed and before-and-after behavior"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "liquid-damage",
+      "label": "Liquid / Contamination Damage",
+      "order": 74,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll assess liquid or contamination damage and which components may survive.",
+          "steps": [
+            {
+              "title": "Record the liquid type, when it happened, and what was done since"
+            },
+            {
+              "title": "Keep the system unpowered and disconnect external power"
+            },
+            {
+              "title": "Check for residue, corrosion, and affected areas"
+            },
+            {
+              "title": "Inspect each component for contamination and corrosion"
+            },
+            {
+              "title": "Annotate what is cleanable, needs replacement, or if the system is unrecoverable"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll clean contaminated components one by one and replace those that cannot be saved.",
+          "steps": [
+            {
+              "title": "Confirm approved scope and that success is not guaranteed"
+            },
+            {
+              "title": "Remove components and clean each with appropriate solution, then dry fully"
+            },
+            {
+              "title": "Replace components that are corroded or fail testing"
+            },
+            {
+              "title": "Reassemble and test each component, then the whole system"
+            },
+            {
+              "title": "Record parts cleaned, replaced, and remaining risk of delayed corrosion"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "collateral-damage",
+      "label": "Cascading / Collateral Damage",
+      "order": 75,
+      "services": {
+        "diagnostic": {
+          "description": "After a primary fault, we’ll check what else it damaged.",
+          "steps": [
+            {
+              "title": "Record the primary fault and how it was confirmed"
+            },
+            {
+              "title": "Test every other component using known-good parts or a bench setup"
+            },
+            {
+              "title": "Record each component as damaged, good, or untested"
+            },
+            {
+              "title": "Quote the full scope and explain the effect on cost to the customer"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "physical-damage",
+      "label": "Physical / Mechanical Damage",
+      "order": 76,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll assess bent pins, broken parts, and other physical damage.",
+          "steps": [
+            {
+              "title": "Annotate the damage, including bent or missing socket pins"
+            },
+            {
+              "title": "Record whether the damaged part is repairable or must be replaced"
+            },
+            {
+              "title": "Check whether the cause damaged other parts"
+            },
+            {
+              "title": "Quote the revised scope and risks before continuing"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll repair or replace physically damaged parts with customer approval.",
+          "steps": [
+            {
+              "title": "Confirm approval and the risk of further damage"
+            },
+            {
+              "title": "Attempt pin straightening only when approved; otherwise replace the part"
+            },
+            {
+              "title": "Record the original and replacement part details"
+            },
+            {
+              "title": "Test startup and the affected components"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "out-of-case-test",
+      "label": "Out-of-Case Test (Severe / Unknown Cause)",
+      "order": 77,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll test essential parts outside the case to isolate severe or unknown failures.",
+          "steps": [
+            {
+              "title": "Set up on a safe, nonconductive surface with known-good power"
+            },
+            {
+              "title": "Connect only one part from customer PC at a time, use all other known good test parts"
+            },
+            {
+              "title": "Record startup result, then add one part at a time"
+            },
+            {
+              "title": "Record which part or connection causes failure"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cpu-cooling",
+      "label": "CPU Cooling",
+      "order": 80,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll check the CPU cooler, its fan or pump, and temperature behavior.",
+          "steps": [
+            {
+              "title": "Record idle temperature and fan or pump readings"
+            },
+            {
+              "title": "Inspect cooler mounting, connections, dust, and unusual noise"
+            },
+            {
+              "title": "Check temperature under a monitored load if safe"
+            },
+            {
+              "title": "Record temperatures, throttling, and the suspected cooling fault"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll correct a failing CPU cooler or its connections.",
+          "steps": [
+            {
+              "title": "Clean accessible cooler dust and check fan or pump connections"
+            },
+            {
+              "title": "Replace a failed serviceable fan or cooler"
+            },
+            {
+              "title": "Apply fresh thermal interface material if the cooler was removed"
+            },
+            {
+              "title": "Record fan behavior and idle and monitored load temperatures"
+            }
+          ]
+        },
+        "upgrade": {
+          "description": "We’ll install a compatible cooler for the desired cooling or noise level.",
+          "steps": [
+            {
+              "title": "Confirm socket, case, RAM, and radiator clearance"
+            },
+            {
+              "title": "Install the cooler and connect its fans or pump correctly"
+            },
+            {
+              "title": "Set an appropriate fan profile"
+            },
+            {
+              "title": "Record noise behavior and monitored temperatures"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "case-fans",
+      "label": "Case Fans",
+      "order": 90,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll check case fan operation, noise, and airflow.",
+          "steps": [
+            {
+              "title": "Record which fans spin and any unusual sounds"
+            },
+            {
+              "title": "Check fan direction, cables, hubs, and control settings"
+            },
+            {
+              "title": "Check case airflow and relevant system temperatures"
+            },
+            {
+              "title": "Record the faulty fan or airflow issue"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll replace a failed case fan or correct its connection.",
+          "steps": [
+            {
+              "title": "Confirm fan size, connector, and airflow direction"
+            },
+            {
+              "title": "Correct connections or install the replacement fan"
+            },
+            {
+              "title": "Keep cables clear of moving blades"
+            },
+            {
+              "title": "Record fan speed, noise, and airflow after repair"
+            }
+          ]
+        },
+        "upgrade": {
+          "description": "We’ll add compatible fans to improve airflow or reduce noise.",
+          "steps": [
+            {
+              "title": "Plan intake and exhaust locations"
+            },
+            {
+              "title": "Confirm sizes, headers, hub capacity, and power requirements"
+            },
+            {
+              "title": "Install fans and route cables safely"
+            },
+            {
+              "title": "Set fan controls and record temperature and noise results"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "bios-uefi",
+      "label": "BIOS/UEFI Firmware",
+      "order": 100,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll check startup firmware settings and whether an update is actually needed.",
+          "steps": [
+            {
+              "title": "Record motherboard model and current firmware version"
+            },
+            {
+              "title": "Check the reported symptom or hardware compatibility need"
+            },
+            {
+              "title": "Review boot mode, drive detection, and relevant settings"
+            },
+            {
+              "title": "Record whether a firmware update is recommended and why"
+            }
+          ]
+        },
+        "update": {
+          "description": "We’ll install approved firmware for a specific compatibility, stability, or security need.",
+          "steps": [
+            {
+              "title": "Confirm the exact board model and approved firmware file"
+            },
+            {
+              "title": "Record the current version and settings that must be restored"
+            },
+            {
+              "title": "Verify backup instructions and recovery-key access if encrypted"
+            },
+            {
+              "title": "Ensure stable power and follow the board maker's update method"
+            },
+            {
+              "title": "Do not interrupt the update; follow the maker's recovery guidance if it fails"
+            },
+            {
+              "title": "Confirm the new version, boot settings, and connected hardware"
+            },
+            {
+              "title": "Record startup and encryption-recovery results"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "thermal-service",
+      "label": "Thermal Issues and Airflow",
+      "order": 110,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll find out why the desktop runs hot, slows down, or shuts off.",
+          "steps": [
+            {
+              "title": "Record when heat, noise, or shutdowns occur"
+            },
+            {
+              "title": "Check temperatures, clock behavior, and fan operation at idle"
+            },
+            {
+              "title": "Inspect filters, vents, dust, and intake and exhaust paths"
+            },
+            {
+              "title": "Run a monitored load test only if temperatures remain safe"
+            },
+            {
+              "title": "Record readings, test duration, and likely heat source"
+            }
+          ]
+        },
+        "maintenance": {
+          "description": "We’ll clean accessible airflow paths and adjust cooling settings.",
+          "steps": [
+            {
+              "title": "Disconnect power and protect fans while cleaning"
+            },
+            {
+              "title": "Clean accessible filters, vents, fans, and heat sinks"
+            },
+            {
+              "title": "Check cable placement and safe fan settings"
+            },
+            {
+              "title": "Stop and recommend a repair if a fan or pump has failed"
+            },
+            {
+              "title": "Record before-and-after temperatures under comparable conditions"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ports-network",
+      "label": "Ports and Networking",
+      "order": 120,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll check the affected desktop ports, wired network, Wi-Fi, or Bluetooth.",
+          "steps": [
+            {
+              "title": "Record exactly which connection fails"
+            },
+            {
+              "title": "Test with a known-good cable or device"
+            },
+            {
+              "title": "Inspect the port and check Device Manager and settings"
+            },
+            {
+              "title": "Record the tested ports and results"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll correct serviceable connections, drivers, or removable port hardware.",
+          "steps": [
+            {
+              "title": "Confirm whether the cause is a port, cable, driver, or network"
+            },
+            {
+              "title": "Correct the driver or replace a serviceable damaged part"
+            },
+            {
+              "title": "Document any fault requiring motherboard repair"
+            },
+            {
+              "title": "Retest the affected connections and record results"
+            }
+          ]
+        },
+        "upgrade": {
+          "description": "We’ll install compatible networking or port expansion hardware.",
+          "steps": [
+            {
+              "title": "Confirm available slots, ports, drivers, and network requirements"
+            },
+            {
+              "title": "Install the approved adapter and driver"
+            },
+            {
+              "title": "Test the new ports or network connection"
+            },
+            {
+              "title": "Record device detection and connection results"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "laptopComponentTemplates": [
+    {
+      "id": "charging",
+      "label": "Charging and Power",
+      "order": 10,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll check the charger, charging port, and laptop power behavior.",
+          "steps": [
+            {
+              "title": "Record charging and startup symptoms"
+            },
+            {
+              "title": "Check the charger rating, cable, and connector"
+            },
+            {
+              "title": "Inspect the charging port for looseness or damage"
+            },
+            {
+              "title": "Test a known-good compatible charger when available"
+            },
+            {
+              "title": "Record charging and startup results"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll replace a faulty charger or serviceable charging part.",
+          "steps": [
+            {
+              "title": "Confirm the failed part and replacement compatibility"
+            },
+            {
+              "title": "Disconnect the internal battery before internal work"
+            },
+            {
+              "title": "Replace the charger, removable port, cable, or charging board as indicated"
+            },
+            {
+              "title": "Document a mainboard-level charging fault if present"
+            },
+            {
+              "title": "Record charging and startup tests"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "battery",
+      "label": "Battery",
+      "order": 20,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll check battery condition, charging, and runtime.",
+          "steps": [
+            {
+              "title": "Check for swelling or case separation before charging or testing"
+            },
+            {
+              "title": "Stop use and follow battery safety procedures if swelling is found"
+            },
+            {
+              "title": "Record reported capacity, health, and cycle count if available"
+            },
+            {
+              "title": "Check charging and unplugged behavior only when safe"
+            },
+            {
+              "title": "Record findings and whether replacement is recommended"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll replace a failed battery when it can be handled safely.",
+          "steps": [
+            {
+              "title": "Confirm battery compatibility and safe handling requirements"
+            },
+            {
+              "title": "Do not puncture or compress a swollen battery"
+            },
+            {
+              "title": "Disconnect power and remove the battery using the model's procedure"
+            },
+            {
+              "title": "Install the compatible replacement"
+            },
+            {
+              "title": "Record battery detection, charging, and startup results"
+            },
+            {
+              "title": "Arrange proper disposal of the old battery"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "mainboard",
+      "label": "Mainboard",
+      "order": 30,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll narrow down laptop startup, charging, and internal connection faults.",
+          "steps": [
+            {
+              "title": "Record power lights, charging lights, and startup behavior"
+            },
+            {
+              "title": "Inspect for liquid damage, corrosion, or burnt components"
+            },
+            {
+              "title": "Check serviceable cables and small attached boards"
+            },
+            {
+              "title": "Test removable parts when appropriate"
+            },
+            {
+              "title": "Record what was ruled out and whether specialist work is needed"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll correct serviceable connections or replace a failed removable board.",
+          "steps": [
+            {
+              "title": "Confirm backup instructions and the approved work"
+            },
+            {
+              "title": "Disconnect the internal battery before internal work"
+            },
+            {
+              "title": "Reseat affected cables or replace a failed removable board"
+            },
+            {
+              "title": "Refer mainboard-level faults for approved specialist repair or replacement"
+            },
+            {
+              "title": "Record startup and affected-device test results"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ram",
+      "label": "RAM",
+      "order": 40,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll check laptop memory and identify whether it is removable.",
+          "steps": [
+            {
+              "title": "Record detected memory and whether any is soldered"
+            },
+            {
+              "title": "Check removable memory seating when applicable"
+            },
+            {
+              "title": "Test individual removable modules when possible"
+            },
+            {
+              "title": "Record memory-test passes, errors, and duration"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll reseat or replace failed removable memory.",
+          "steps": [
+            {
+              "title": "Confirm the memory is removable and the replacement is compatible"
+            },
+            {
+              "title": "Disconnect the internal battery before internal work"
+            },
+            {
+              "title": "Reseat or replace the failed module"
+            },
+            {
+              "title": "Document soldered-memory faults as a mainboard issue"
+            },
+            {
+              "title": "Record detected capacity and memory-test results"
+            }
+          ]
+        },
+        "upgrade": {
+          "description": "We’ll add memory only if the laptop supports it.",
+          "steps": [
+            {
+              "title": "Confirm upgradeable slots, supported type, and capacity"
+            },
+            {
+              "title": "Disconnect the internal battery before installation"
+            },
+            {
+              "title": "Install compatible memory"
+            },
+            {
+              "title": "Record detected capacity and memory-test results"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "processor-graphics",
+      "label": "Processor and Graphics",
+      "order": 50,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll check laptop processor or graphics behavior without assuming the chips can be replaced.",
+          "steps": [
+            {
+              "title": "Record crashes, display faults, or slowdowns"
+            },
+            {
+              "title": "Check temperatures, fan behavior, and Device Manager"
+            },
+            {
+              "title": "Test the internal and external display when relevant"
+            },
+            {
+              "title": "Run a monitored test only when temperatures are safe"
+            },
+            {
+              "title": "Record readings and whether the issue points to cooling, software, or hardware"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll correct serviceable cooling or driver causes of processor and graphics problems.",
+          "steps": [
+            {
+              "title": "Confirm whether cooling or software is the likely cause"
+            },
+            {
+              "title": "Perform approved cooling work if indicated"
+            },
+            {
+              "title": "Correct affected drivers if indicated"
+            },
+            {
+              "title": "Document chip or mainboard faults needing specialist work"
+            },
+            {
+              "title": "Record the repeat test and remaining symptoms"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "storage",
+      "label": "Storage Drive",
+      "order": 60,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll check laptop storage detection, health, and file access.",
+          "steps": [
+            {
+              "title": "Record the drive model and reported symptoms"
+            },
+            {
+              "title": "Check detection and removable-drive connections"
+            },
+            {
+              "title": "Review available drive-health information"
+            },
+            {
+              "title": "Avoid extended tests on a drive showing signs of failure"
+            },
+            {
+              "title": "Record results and any urgent backup recommendation"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll correct storage connections, approved boot faults, or replace a failed drive.",
+          "steps": [
+            {
+              "title": "Confirm backup instructions before changing storage"
+            },
+            {
+              "title": "Disconnect the internal battery before internal work"
+            },
+            {
+              "title": "Reseat the drive or replace it if confirmed faulty"
+            },
+            {
+              "title": "Perform approved boot repair or data restoration"
+            },
+            {
+              "title": "Record boot and file-access results"
+            }
+          ]
+        },
+        "upgrade": {
+          "description": "We’ll install compatible storage using the approved migration plan.",
+          "steps": [
+            {
+              "title": "Confirm drive size, interface, and laptop support"
+            },
+            {
+              "title": "Confirm backup, cloning, or reinstall instructions"
+            },
+            {
+              "title": "Install the drive and complete the approved migration"
+            },
+            {
+              "title": "Record capacity, health, boot, and file-access results"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "windows",
+      "label": "Windows",
+      "order": 70,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll identify laptop Windows startup, driver, update, or software problems.",
+          "steps": [
+            {
+              "title": "Record symptoms and recent changes"
+            },
+            {
+              "title": "Check startup, Device Manager, and relevant error records"
+            },
+            {
+              "title": "Check storage health before extensive repair attempts"
+            },
+            {
+              "title": "Use recovery media when needed without changing data"
+            },
+            {
+              "title": "Record the likely cause and recommended next step"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll perform approved Windows and driver repairs.",
+          "steps": [
+            {
+              "title": "Confirm backup instructions and recovery-key access"
+            },
+            {
+              "title": "Repair the identified startup, file, software, or driver fault"
+            },
+            {
+              "title": "Install approved updates and required laptop drivers"
+            },
+            {
+              "title": "Record startup, activation, and affected-device results"
+            }
+          ]
+        },
+        "upgrade": {
+          "description": "We’ll move the laptop to an approved, supported Windows installation.",
+          "steps": [
+            {
+              "title": "Confirm hardware support, license, backup, and approval"
+            },
+            {
+              "title": "Verify recovery-key access before changing encrypted storage"
+            },
+            {
+              "title": "Perform the approved upgrade or reinstall"
+            },
+            {
+              "title": "Install required laptop drivers, updates, and approved software"
+            },
+            {
+              "title": "Record activation, file access, startup, and device tests"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "windows-reinstall",
+      "label": "Windows Reimage / Reinstall",
+      "order": 72,
+      "services": {
+        "repair": {
+          "description": "We’ll reinstall or reimage Windows when repair is not practical.",
+          "steps": [
+            {
+              "title": "Confirm customer approval, license, and that data loss is understood"
+            },
+            {
+              "title": "Back up or clone the drive (for example with Clonezilla) and verify the image (if requested)"
+            },
+            {
+              "title": "Verify recovery-key access before changing encrypted storage"
+            },
+            {
+              "title": "Choose and record the method: reset, clean reinstall, or restore image"
+            },
+            {
+              "title": "Install laptop drivers, updates, and approved software"
+            },
+            {
+              "title": "Restore approved data and record activation, startup, and device results"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "windows-maintenance",
+      "label": "Windows Maintenance and Virtual Memory",
+      "order": 73,
+      "services": {
+        "maintenance": {
+          "description": "We’ll tune Windows settings such as the page file and startup load.",
+          "steps": [
+            {
+              "title": "Record installed RAM, free disk space, and memory-related symptoms"
+            },
+            {
+              "title": "Check page file (virtual memory) size and location; restore system-managed sizing if altered"
+            },
+            {
+              "title": "Review startup programs, pending updates, and disk cleanup needs"
+            },
+            {
+              "title": "Record settings changed and before-and-after behavior"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "liquid-damage",
+      "label": "Liquid / Contamination Damage",
+      "order": 74,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll assess liquid or contamination damage and which components may survive.",
+          "steps": [
+            {
+              "title": "Record the liquid type, when it happened, and what was done since"
+            },
+            {
+              "title": "Keep the laptop off, unplugged, and disconnect the internal battery"
+            },
+            {
+              "title": "Photograph residue, corrosion, and affected areas"
+            },
+            {
+              "title": "Inspect mainboard, keyboard, ports, battery, and display cable for contamination"
+            },
+            {
+              "title": "Annotate what is cleanable, needs replacement, or if the system is unrecoverable"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll clean contaminated parts one by one and replace those that cannot be saved.",
+          "steps": [
+            {
+              "title": "Confirm approved scope and that success is not guaranteed"
+            },
+            {
+              "title": "Disconnect the internal battery, remove parts, clean each, and dry fully"
+            },
+            {
+              "title": "Replace parts that are corroded or fail testing"
+            },
+            {
+              "title": "Reassemble and test each function, then the whole laptop"
+            },
+            {
+              "title": "Record parts cleaned, replaced, and remaining risk of delayed corrosion"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "collateral-damage",
+      "label": "Cascading / Collateral Damage",
+      "order": 75,
+      "services": {
+        "diagnostic": {
+          "description": "After a primary fault, we’ll check what else it damaged.",
+          "steps": [
+            {
+              "title": "Record the primary fault and how it was confirmed"
+            },
+            {
+              "title": "Test charger, battery, storage, RAM, display, and ports for related damage"
+            },
+            {
+              "title": "Record each component as damaged, good, or untested"
+            },
+            {
+              "title": "Quote the full scope and explain the effect on cost to the customer"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "physical-damage",
+      "label": "Physical / Mechanical Damage",
+      "order": 76,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll assess cracks, bent connectors, and other physical damage.",
+          "steps": [
+            {
+              "title": "Photograph the damage, including bent or broken connectors and pins"
+            },
+            {
+              "title": "Record whether the damaged part is repairable or must be replaced"
+            },
+            {
+              "title": "Check whether the cause damaged other parts"
+            },
+            {
+              "title": "Quote the revised scope and risks before continuing"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll repair or replace physically damaged parts with customer approval.",
+          "steps": [
+            {
+              "title": "Confirm approval and the risk of further damage"
+            },
+            {
+              "title": "Disconnect the internal battery before internal work"
+            },
+            {
+              "title": "Record the original and replacement part details"
+            },
+            {
+              "title": "Test startup and the affected components"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cooling-fans",
+      "label": "Cooling and Fans",
+      "order": 80,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll check the laptop fan and heat sink for cooling faults.",
+          "steps": [
+            {
+              "title": "Record idle temperatures and reported heat symptoms"
+            },
+            {
+              "title": "Check fan startup, speed changes, and unusual sounds"
+            },
+            {
+              "title": "Check vents and accessible heat sink areas for blockage"
+            },
+            {
+              "title": "Record safe monitored-load temperatures if testing is possible"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll clean or replace serviceable laptop cooling parts.",
+          "steps": [
+            {
+              "title": "Confirm the failed part and replacement compatibility"
+            },
+            {
+              "title": "Disconnect the internal battery before internal work"
+            },
+            {
+              "title": "Clean blockage or replace the faulty fan or heat sink assembly"
+            },
+            {
+              "title": "Renew thermal interface material if the heat sink was removed"
+            },
+            {
+              "title": "Record fan behavior and monitored temperatures"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "display",
+      "label": "Screen and Display",
+      "order": 90,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll identify whether a screen, cable, setting, or graphics fault affects the display.",
+          "steps": [
+            {
+              "title": "Record flickering, lines, backlight, or image problems"
+            },
+            {
+              "title": "Test an external display when available"
+            },
+            {
+              "title": "Check whether gently moving the lid changes the image"
+            },
+            {
+              "title": "Check settings and visible hinge-area cable damage"
+            },
+            {
+              "title": "Record which display outputs work"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll replace the confirmed faulty serviceable display part.",
+          "steps": [
+            {
+              "title": "Confirm the exact screen, cable, or assembly needed"
+            },
+            {
+              "title": "Disconnect the internal battery before display work"
+            },
+            {
+              "title": "Replace the approved faulty part and route cables correctly"
+            },
+            {
+              "title": "Record image, brightness, camera, and lid-movement tests"
+            }
+          ]
+        },
+        "upgrade": {
+          "description": "We’ll install a better screen only when the laptop supports it.",
+          "steps": [
+            {
+              "title": "Confirm panel, cable, mounting, resolution, and refresh compatibility"
+            },
+            {
+              "title": "Disconnect the internal battery before installation"
+            },
+            {
+              "title": "Install the approved compatible panel"
+            },
+            {
+              "title": "Record brightness, resolution, refresh rate, and lid tests"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "keyboard-touchpad",
+      "label": "Keyboard and Touchpad",
+      "order": 100,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll check keyboard keys, backlight, touchpad, and input connections.",
+          "steps": [
+            {
+              "title": "Test affected keys, function keys, and backlight"
+            },
+            {
+              "title": "Test touchpad movement, clicks, scrolling, and gestures"
+            },
+            {
+              "title": "Check for liquid damage or battery swelling"
+            },
+            {
+              "title": "Compare with external input devices when useful"
+            },
+            {
+              "title": "Record failed inputs and test conditions"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll replace a confirmed faulty serviceable input part.",
+          "steps": [
+            {
+              "title": "Confirm replacement layout and model compatibility"
+            },
+            {
+              "title": "Disconnect the internal battery before internal work"
+            },
+            {
+              "title": "Check the cable and replace the failed approved part"
+            },
+            {
+              "title": "Record key, backlight, click, and gesture tests"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ports-wireless",
+      "label": "Ports and Wireless",
+      "order": 110,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll check affected ports, Wi-Fi, Bluetooth, and audio connections.",
+          "steps": [
+            {
+              "title": "Record which connections fail"
+            },
+            {
+              "title": "Test ports using known-good devices and cables"
+            },
+            {
+              "title": "Check visible damage, settings, and driver errors"
+            },
+            {
+              "title": "Test wireless and audio functions when relevant"
+            },
+            {
+              "title": "Record each affected connection and result"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll correct a serviceable port, wireless, antenna, or driver fault.",
+          "steps": [
+            {
+              "title": "Confirm the cause and whether the part is removable"
+            },
+            {
+              "title": "Disconnect the internal battery before internal work"
+            },
+            {
+              "title": "Correct the driver or replace the approved serviceable part"
+            },
+            {
+              "title": "Document soldered-port or mainboard faults"
+            },
+            {
+              "title": "Retest affected connections and record results"
+            }
+          ]
+        },
+        "upgrade": {
+          "description": "We’ll install supported wireless hardware or an external adapter.",
+          "steps": [
+            {
+              "title": "Confirm card, antenna, firmware, and driver compatibility"
+            },
+            {
+              "title": "Install the approved internal or external hardware"
+            },
+            {
+              "title": "Install required drivers"
+            },
+            {
+              "title": "Record Wi-Fi, Bluetooth, and connection tests"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "hinges-chassis",
+      "label": "Hinges and Chassis",
+      "order": 120,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll check hinges, covers, mounting points, and cables near the lid.",
+          "steps": [
+            {
+              "title": "Photograph cracks, gaps, and missing hardware"
+            },
+            {
+              "title": "Gently check lid movement without forcing damaged hinges"
+            },
+            {
+              "title": "Check for display changes or cable damage during movement"
+            },
+            {
+              "title": "Record affected parts and whether use could worsen damage"
+            }
+          ]
+        },
+        "repair": {
+          "description": "We’ll replace approved damaged hinges, covers, brackets, or mounting parts.",
+          "steps": [
+            {
+              "title": "Confirm the exact replacement assembly and customer approval"
+            },
+            {
+              "title": "Disconnect the internal battery before internal work"
+            },
+            {
+              "title": "Replace damaged parts and route display and antenna cables safely"
+            },
+            {
+              "title": "Record lid alignment, display, camera, and wireless tests"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "bios-uefi",
+      "label": "BIOS/UEFI Firmware",
+      "order": 130,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll check laptop startup firmware and whether an update is needed.",
+          "steps": [
+            {
+              "title": "Record the exact laptop model and current firmware version"
+            },
+            {
+              "title": "Check the symptom or compatibility reason for an update"
+            },
+            {
+              "title": "Review relevant boot and device-detection settings"
+            },
+            {
+              "title": "Record whether an update is recommended and why"
+            }
+          ]
+        },
+        "update": {
+          "description": "We’ll install approved laptop firmware for a specific need.",
+          "steps": [
+            {
+              "title": "Confirm the exact model and manufacturer-approved firmware"
+            },
+            {
+              "title": "Record the existing version and important firmware settings"
+            },
+            {
+              "title": "Verify backup instructions and recovery-key access if encrypted"
+            },
+            {
+              "title": "Check battery condition and connect a reliable compatible charger"
+            },
+            {
+              "title": "Follow the manufacturer's update method without interruption"
+            },
+            {
+              "title": "Confirm version, boot behavior, charging, and affected devices"
+            },
+            {
+              "title": "Record any encryption-recovery or setting changes"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "thermal-service",
+      "label": "Thermal Issues and Cleaning",
+      "order": 140,
+      "services": {
+        "diagnostic": {
+          "description": "We’ll investigate heat, loud fans, slowdowns, or heat-related shutdowns.",
+          "steps": [
+            {
+              "title": "Record when heat or shutdowns occur"
+            },
+            {
+              "title": "Check idle temperatures, fan response, and available vents"
+            },
+            {
+              "title": "Check temperatures under a monitored load only if safe"
+            },
+            {
+              "title": "Record test duration, readings, throttling, and likely cause"
+            }
+          ]
+        },
+        "maintenance": {
+          "description": "We’ll clean accessible airflow paths and check cooling performance.",
+          "steps": [
+            {
+              "title": "Disconnect power and the internal battery before internal cleaning"
+            },
+            {
+              "title": "Clean accessible vents, fans, and heat sink fins safely"
+            },
+            {
+              "title": "Protect fan blades from spinning during cleaning"
+            },
+            {
+              "title": "Stop and recommend repair if a fan or heat sink has failed"
+            },
+            {
+              "title": "Record before-and-after readings under comparable conditions"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "desktopOptionalTools": [
+    {
+      "id": "ram-test-board",
+      "label": "RAM Test Board",
+      "description": "Lit slot indicators show connection quality; dim or off means poor contact.",
+      "step": "Record each slot's indicator state (bright, dim, off) and the RAM connection conclusion",
+      "deviceType": "desktop",
+      "serviceTypes": ["diagnostic", "repair", "upgrade"]
+    },
+    {
+      "id": "clonezilla",
+      "label": "Clonezilla",
+      "description": "Clone or image a drive for backup, migration, or reimaging.",
+      "step": "Record source and target drives, clone or image mode, and verification result",
+      "deviceType": "desktop",
+      "serviceTypes": ["repair", "upgrade"]
+    },
+    {
+      "id": "psu-tester",
+      "label": "Power Supply Tester",
+      "description": "Record the tester result without opening the power supply.",
+      "step": "Record tester model, power supply model, and result",
+      "deviceType": "desktop",
+      "serviceTypes": ["diagnostic", "repair"]
+    },
+    {
+      "id": "voltmeter",
+      "label": "Voltmeter",
+      "description": "For trained technicians using an approved external test method only. Never open the power supply.",
+      "step": "Record test method, measured DC rail voltages, and result",
+      "deviceType": "desktop",
+      "serviceTypes": ["diagnostic", "repair"]
+    },
+    {
+      "id": "motherboard-speaker",
+      "label": "Motherboard Speaker",
+      "description": "Record startup beep-code information.",
+      "step": "Record beep pattern, board documentation, and interpretation",
+      "deviceType": "desktop",
+      "serviceTypes": ["diagnostic", "repair"]
+    },
+    {
+      "id": "breadboard-test",
+      "label": "Out-of-Case Test",
+      "description": "Primary method for severe or unknown-cause failures; also available as a diagnostic component. Use a safe, nonconductive surface.",
+      "step": "Record connected parts and startup result",
+      "deviceType": "desktop",
+      "serviceTypes": ["diagnostic", "repair"]
+    },
+    {
+      "id": "memtest86",
+      "label": "MemTest86",
+      "description": "Record a memory-test result.",
+      "step": "Record passes, errors, tested capacity, and duration",
+      "deviceType": "desktop",
+      "serviceTypes": ["diagnostic", "repair", "upgrade"]
+    },
+    {
+      "id": "ddu",
+      "label": "DDU",
+      "description": "Record a clean graphics-driver removal when appropriate.",
+      "step": "Record old and new drivers and the display test result",
+      "deviceType": "desktop",
+      "serviceTypes": ["diagnostic", "repair", "upgrade"]
+    },
+    {
+      "id": "cpu-stress-test",
+      "label": "CPU Stress Test",
+      "description": "Run only while temperatures can be monitored safely.",
+      "step": "Record test, duration, peak temperature, errors, and result",
+      "deviceType": "desktop",
+      "serviceTypes": ["diagnostic", "repair", "upgrade"]
+    },
+    {
+      "id": "gpu-stress-test",
+      "label": "Graphics Stress Test",
+      "description": "Run only while temperatures can be monitored safely.",
+      "step": "Record test, duration, peak temperature, artifacts, and result",
+      "deviceType": "desktop",
+      "serviceTypes": ["diagnostic", "repair", "upgrade"]
+    },
+    {
+      "id": "drive-test",
+      "label": "Drive Health Test",
+      "description": "Prioritize data protection over extended testing on a failing drive.",
+      "step": "Record drive, health data, test performed, and result",
+      "deviceType": "desktop",
+      "serviceTypes": ["diagnostic", "repair", "upgrade"]
+    },
+    {
+      "id": "firmware-update-log",
+      "label": "Firmware Update Log",
+      "description": "Document the exact firmware change and verification.",
+      "step": "Record device model, old version, new version, method, and boot result",
+      "deviceType": "desktop",
+      "serviceTypes": ["update"]
+    },
+    {
+      "id": "thermal-comparison",
+      "label": "Thermal Comparison",
+      "description": "Compare temperatures using similar before-and-after conditions.",
+      "step": "Record ambient conditions, load, duration, and temperatures",
+      "deviceType": "desktop",
+      "serviceTypes": ["diagnostic", "repair", "upgrade", "maintenance"]
+    }
+  ],
+  "laptopOptionalTools": [
+    {
+      "id": "clonezilla",
+      "label": "Clonezilla",
+      "description": "Clone or image a drive for backup, migration, or reimaging.",
+      "step": "Record source and target drives, clone or image mode, and verification result",
+      "deviceType": "laptop",
+      "serviceTypes": ["repair", "upgrade"]
+    },
+    {
+      "id": "battery-report",
+      "label": "Battery Report",
+      "description": "Record available battery health details.",
+      "step": "Record design capacity, current capacity, cycles, and charging result",
+      "deviceType": "laptop",
+      "serviceTypes": ["diagnostic", "repair"]
+    },
+    {
+      "id": "manufacturer-test",
+      "label": "Laptop Hardware Test",
+      "description": "Record the manufacturer-provided hardware test.",
+      "step": "Record test name, error codes, and result",
+      "deviceType": "laptop",
+      "serviceTypes": ["diagnostic", "repair"]
+    },
+    {
+      "id": "windows-recovery-media",
+      "label": "Windows Recovery Media",
+      "description": "Document Windows recovery or installation work.",
+      "step": "Record startup, repair, or installation action and result",
+      "deviceType": "laptop",
+      "serviceTypes": ["diagnostic", "repair", "upgrade"]
+    },
+    {
+      "id": "linux-live-usb",
+      "label": "Linux Live USB",
+      "description": "Check hardware independently of the installed Windows system.",
+      "step": "Record detected hardware, test duration, and result",
+      "deviceType": "laptop",
+      "serviceTypes": ["diagnostic", "repair"]
+    },
+    {
+      "id": "memtest86",
+      "label": "MemTest86",
+      "description": "Record a memory-test result.",
+      "step": "Record passes, errors, tested capacity, and duration",
+      "deviceType": "laptop",
+      "serviceTypes": ["diagnostic", "repair", "upgrade"]
+    },
+    {
+      "id": "temperature-test",
+      "label": "Temperature Test",
+      "description": "Record monitored temperature and fan behavior.",
+      "step": "Record load, duration, temperatures, fan behavior, and result",
+      "deviceType": "laptop",
+      "serviceTypes": ["diagnostic", "repair", "maintenance"]
+    },
+    {
+      "id": "drive-test",
+      "label": "Drive Health Test",
+      "description": "Prioritize data protection over extended testing on a failing drive.",
+      "step": "Record drive, health data, test performed, and result",
+      "deviceType": "laptop",
+      "serviceTypes": ["diagnostic", "repair", "upgrade"]
+    },
+    {
+      "id": "external-display",
+      "label": "External Display Test",
+      "description": "Compare internal and external display output.",
+      "step": "Record display connection, internal output, and external output",
+      "deviceType": "laptop",
+      "serviceTypes": ["diagnostic", "repair", "upgrade"]
+    },
+    {
+      "id": "firmware-update-log",
+      "label": "Firmware Update Log",
+      "description": "Document the exact firmware change and verification.",
+      "step": "Record laptop model, old version, new version, method, and boot result",
+      "deviceType": "laptop",
+      "serviceTypes": ["update"]
+    }
+  ],
+  "defaultCompletionFlags": {
+    "windows": false,
+    "motherboardDrivers": false,
+    "gpuDrivers": false,
+    "bitlocker": false,
+    "bios": false,
+    "biosUpdated": false,
+    "firmwareVersionVerified": false,
+    "recoveryKeyVerified": false,
+    "memoryProfile": false,
+    "resizeBar": false,
+    "secureBoot": false,
+    "cleaned": false,
+    "connectivity": false,
+    "fanTest": false,
+    "temperatureTest": false,
+    "storageHealth": false,
+    "batteryHealth": false,
+    "displayTest": false,
+    "keyboardTouchpadTest": false,
+    "portsTest": false,
+    "audioVideoTest": false,
+    "finalBootTest": false,
+    "customerSummaryWritten": false
+  }
+}

@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Work Mate Assistant</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup-shell">
+      <header class="topbar">
+        <div class="brand-mark" aria-hidden="true">
+          <img
+            class="brand-logo"
+            src="icons/icon128.png"
+            alt="Work Mate Assistant logo"
+          />
+        </div>
+        <div class="brand-copy">
+          <p class="eyebrow">TECHBAY / WORK MATE</p>
+          <h1>Assistant</h1>
+        </div>
+        <span
+          class="connection"
+          id="connection"
+          aria-label="Checking active tab"
+        >
+          <span class="connection-dot"></span> </span
+        ><label class="theme-control">
+          <span class="sr-only">Color theme</span>
+          <select id="theme-select" aria-label="Color theme">
+            <option value="meta">Meta</option>
+            <option value="nightreaper">Nightreaper</option>
+            <option value="hyperbeast">Hyperbeast</option>
+            <option value="phoenix">Phoenix</option>
+            <option value="gray">Gray</option>
+            <option value="black">Black</option>
+            <option value="white">White</option>
+          </select>
+        </label>
+        <button class="reset-button" id="reset-button" type="button">
+          Reset
+        </button>
+      </header>
+
+      <div class="order-strip">
+        <div class="order-info">
+          <span class="order-label">ACTIVE ORDER</span>
+          <span class="order-number" id="order-number">No order detected</span>
+        </div>
+        <label class="field initials-control">
+          <span>Initials</span>
+          <input
+            name="checkInInitials"
+            form="order-form"
+            autocomplete="off"
+            maxlength="4"
+            aria-label="Technician initials"
+          />
+        </label>
+      </div>
+
+      <div class="notes-bar">
+        <label class="notes-select">
+          <span class="sr-only">Saved notes</span>
+          <select id="note-select" aria-label="Saved notes"></select>
+        </label>
+        <button class="notes-button" id="new-note-button" type="button">
+          + New note
+        </button>
+        <button class="notes-button" id="delete-note-button" type="button">
+          Delete
+        </button>
+      </div>
+
+      <form id="order-form">
+        <nav class="tabs" role="tablist" aria-label="Work order stages">
+          <button
+            class="tab active"
+            id="tab-checkin"
+            type="button"
+            role="tab"
+            aria-selected="true"
+            aria-controls="panel-checkin"
+            data-tab="checkin"
+          >
+            Check in
+          </button>
+          <button
+            class="tab"
+            id="tab-service"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="panel-service"
+            data-tab="service"
+          >
+            Choose this service
+          </button>
+        </nav>
+
+        <div
+          class="tab-panel active"
+          id="panel-checkin"
+          role="tabpanel"
+          aria-labelledby="tab-checkin"
+        >
+          <section class="section-block" aria-labelledby="device-heading">
+            <div class="section-heading">
+              <h2 id="device-heading">Device details</h2>
+              <span>WORK ORDER FIELDS</span>
+            </div>
+
+            <div class="grid grid-3">
+              <label class="field">
+                <span>Device</span>
+                <select name="device">
+                  <option value="">Select type</option>
+                  <option value="Desktop">Desktop</option>
+                  <option value="Laptop">Laptop</option>
+                  <option value="Watercooled">Watercooled</option>
+                  <option value="Other">Other</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Priority</span>
+                <select name="priority">
+                  <option value="">Not set</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>S2S</span>
+                <select name="s2s">
+                  <option value="">Not set</option>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </label>
+            </div>
+            <div class="grid grid-4">
+              <label class="field span-2">
+                <span>Make / Model</span>
+                <input
+                  name="makeModel"
+                  autocomplete="off"
+                  placeholder="Brand and model"
+                />
+              </label>
+              <label class="field">
+                <span>Serial</span>
+                <input name="serial" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>PIN</span>
+                <input name="pin" autocomplete="off" />
+              </label>
+            </div>
+            <div class="grid grid-3">
+              <label class="field">
+                <span>Check-in date</span>
+                <input name="workDate" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>ESD date</span>
+                <input name="esd" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>Image URL</span>
+                <input
+                  name="image"
+                  autocomplete="off"
+                  placeholder="Optional image link"
+                />
+              </label>
+            </div>
+            <div class="grid grid-2">
+              <fieldset class="choice-group">
+                <legend>Reimage / Wipe</legend>
+                <label class="choice"
+                  ><input type="radio" name="reimage" value="yes" /><span
+                    >Yes</span
+                  ></label
+                >
+                <label class="choice"
+                  ><input type="radio" name="reimage" value="no" /><span
+                    >No</span
+                  ></label
+                >
+                <label class="choice"
+                  ><input type="radio" name="reimage" value="call" /><span
+                    >Call Me First</span
+                  ></label
+                >
+              </fieldset>
+              <fieldset class="choice-group">
+                <legend>Back-up</legend>
+                <label class="choice"
+                  ><input type="radio" name="backup" value="yes" /><span
+                    >Yes</span
+                  ></label
+                >
+                <label class="choice"
+                  ><input type="radio" name="backup" value="no" /><span
+                    >No</span
+                  ></label
+                >
+              </fieldset>
+            </div>
+            <label class="field">
+              <span>Issue(s)</span>
+              <textarea
+                name="issues"
+                rows="4"
+                placeholder="Customer complaint or requested service"
+              ></textarea>
+            </label>
+            <div class="note-preview">
+              <div class="preview-heading">
+                <strong>Check-in note</strong
+                ><span>Appended to existing notes</span>
+              </div>
+              <pre id="checkin-preview"></pre>
+            </div>
+          </section>
+        </div>
+
+        <div
+          class="tab-panel"
+          id="panel-service"
+          role="tabpanel"
+          aria-labelledby="tab-service"
+          hidden
+        >
+          <section class="section-block">
+            <div class="section-heading">
+              <h2>Choose this service</h2>
+              <span id="service-count">0 selected</span>
+            </div>
+            <div class="grid grid-3">
+              <label class="field"
+                ><span>Service</span
+                ><select name="serviceType">
+                  <option value="diagnostic">Diagnostic</option>
+                  <option value="repair">Repair</option>
+                  <option value="upgrade">Upgrade</option>
+                </select></label
+              >
+              <label class="field"
+                ><span>Add service plan</span
+                ><select id="service-option">
+                  <option value="">Choose a category...</option>
+                </select></label
+              >
+              <label class="field"
+                ><span>Add optional tool</span
+                ><select id="optional-tool">
+                  <option value="">Choose a tool...</option>
+                </select></label
+              >
+            </div>
+            <div id="selected-options" class="selected-list"></div>
+            <div id="selected-tools" class="selected-list"></div>
+            <div id="plan-responses" class="plan-responses"></div>
+            <div class="note-preview">
+              <div class="preview-heading">
+                <strong>Tech Notes</strong><span>Copied for manual paste</span>
+              </div>
+              <pre id="service-preview"></pre>
+            </div>
+          </section>
+        </div>
+
+        <button class="apply-button" type="submit">
+          <span id="submit-label">Fill Check-in and append note</span>
+          <span aria-hidden="true">↗</span>
+        </button>
+      </form>
+
+      <div class="status" id="status" role="status" aria-live="polite">
+        Open a Shopify Work Mate order to begin.
+      </div>
+      <footer>
+        Fields are filled in place. Review changes and submit in Shopify.
+      </footer>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
