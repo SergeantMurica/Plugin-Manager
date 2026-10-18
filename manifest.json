@@ -7,6 +7,7 @@
     "sidePanel",
     "storage",
     "alarms",
+    "idle",
     "clipboardRead",
     "clipboardWrite",
     "scripting",
@@ -28,6 +29,7 @@
     "128": "icons/icon128.png"
   },
   "host_permissions": [
+    "https://dash.metapcs.com/*",
     "https://firestore.googleapis.com/*",
     "https://identitytoolkit.googleapis.com/*",
     "https://securetoken.googleapis.com/*",
@@ -39,6 +41,15 @@
     "https://app.workmatepos.co/*"
   ],
   "content_scripts": [
+    {
+      "matches": [
+        "https://dash.metapcs.com/*"
+      ],
+      "js": [
+        "Plugins/PoundList-Tool-main/content.js"
+      ],
+      "run_at": "document_idle"
+    },
     {
       "matches": [
         "https://admin.shopify.com/*"
