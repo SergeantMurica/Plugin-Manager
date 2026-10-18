@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>META PC Toolbox</title>
+  <!-- must run before the body paints, so themes never flash -->
+  <script src="theme-init.js"></script>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div class="brand">
+        <svg class="mark" viewBox="0 0 70 110" aria-hidden="true">
+          <rect x="0" y="0" width="20" height="110"></rect>
+          <rect x="27" y="9" width="16" height="59"></rect>
+          <rect x="50" y="0" width="20" height="110"></rect>
+        </svg>
+        META PC Toolbox
+      </div>
+      <div class="top-actions">
+        <button id="btn-pin" class="icon-btn" title="Pin &mdash; keep open while you click elsewhere">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M14 2v6l3 3v2h-4v7l-1 2-1-2v-7H7v-2l3-3V2h4z"></path>
+          </svg>
+        </button>
+        <button id="btn-settings" class="icon-btn" title="Settings">&#9881;</button>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab is-active" data-tab="help">Help Center</button>
+      <button class="tab" data-tab="ship">Tracking</button>
+      <button class="tab" data-tab="wm">WorkMate</button>
+      <button class="tab" data-tab="gorgias">Gorgias</button>
+    </nav>
+
+    <main>
+      <!-- ────────────── HELP CENTER ────────────── -->
+      <section class="panel" id="panel-help">
+        <div class="field">
+          <input id="hc-input" type="text" spellcheck="false" autocomplete="off"
+                 placeholder="Search articles &mdash; try &ldquo;GPU reseat&rdquo;">
+          <button id="hc-clear" class="in-field" hidden title="Clear">&times;</button>
+        </div>
+
+        <div class="strip">
+          <label class="mini-select">Copy as
+            <select id="hc-format">
+              <option value="rich">Clickable link</option>
+              <option value="url">URL only</option>
+              <option value="title-url">Title + URL</option>
+              <option value="markdown">Markdown</option>
+            </select>
+          </label>
+          <span id="hc-meta" class="dim"></span>
+        </div>
+
+        <div id="hc-results" class="results"></div>
+      </section>
+
+      <!-- ────────────── TRACKING ────────────── -->
+      <section class="panel" id="panel-ship" hidden>
+        <div class="field">
+          <input id="sh-input" type="text" spellcheck="false" autocomplete="off"
+                 placeholder="Paste a UPS or FedEx tracking number">
+          <button id="sh-paste" class="in-field wide" title="Paste from clipboard">Paste</button>
+        </div>
+
+        <div id="sh-detect" class="detect dim">Carrier is detected automatically from the number.</div>
+        <div id="sh-actions" class="btnrow"></div>
+
+        <div class="recent-block">
+          <div class="recent-head"><span>Recent</span><button id="sh-clear-recent" class="link" hidden>Clear</button></div>
+          <div id="sh-recents" class="recents"></div>
+        </div>
+      </section>
+
+      <!-- ────────────── WORKMATE ────────────── -->
+      <section class="panel" id="panel-wm" hidden>
+        <div class="field">
+          <input id="wm-input" type="text" spellcheck="false" autocomplete="off"
+                 placeholder="Service order &mdash; 1145, SO-#1145, or paste a URL">
+        </div>
+
+        <div id="wm-detect" class="detect dim">Type a number and press Enter.</div>
+        <div class="btnrow">
+          <button id="wm-mini" class="btn primary">Mini window</button>
+          <button id="wm-full" class="btn">Full tab</button>
+        </div>
+
+        <div class="recent-block">
+          <div class="recent-head"><span>Recent</span><button id="wm-clear-recent" class="link" hidden>Clear</button></div>
+          <div id="wm-recents" class="recents"></div>
+        </div>
+      </section>
+
+      <!-- ────────────── GORGIAS ────────────── -->
+      <section class="panel" id="panel-gorgias" hidden>
+        <div class="field">
+          <input id="gg-input" type="text" spellcheck="false" autocomplete="off"
+                 placeholder="Ticket number &mdash; 110227889, or paste a URL">
+        </div>
+
+        <div id="gg-detect" class="detect dim">Accepts 110227889, #110227889, or a pasted ticket URL.</div>
+        <div class="btnrow">
+          <button id="gg-mini" class="btn primary">Mini window</button>
+          <button id="gg-full" class="btn">Full tab</button>
+        </div>
+
+        <div class="recent-block">
+          <div class="recent-head"><span>Recent</span><button id="gg-clear-recent" class="link" hidden>Clear</button></div>
+          <div id="gg-recents" class="recents"></div>
+        </div>
+      </section>
+
+      <!-- ────────────── SETTINGS ────────────── -->
+      <section class="panel scroll" id="panel-settings" hidden>
+        <div class="set-group">
+          <div class="set-label">Theme</div>
+          <div class="themes" id="set-themes"></div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-label">Tools</div>
+          <div id="set-tools"></div>
+          <p class="note">Turn off what your role doesn't use &mdash; hidden tools disappear
+             from the tab bar entirely. At least one has to stay on.</p>
+        </div>
+
+        <div class="set-group">
+          <div class="set-label">SO number links</div>
+          <label class="check"><input type="checkbox" id="set-so-links"> Make SO-#numbers clickable on pages</label>
+          <label class="check"><input type="checkbox" id="set-so-badge"> Show diagnostic badge (bottom-left of the page)</label>
+          <p class="note">Makes <b>every</b> SO number on Shopify admin and Gorgias clickable
+             &mdash; <code>SO-#1145</code>, <code>SO-#806</code>, any of them. Click or
+             middle-click one to open that work order in a new tab. Marked ones get a
+             red dotted underline.</p>
+          <div id="set-sites"></div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-label">Help Center index</div>
+          <div id="set-index-state" class="dim small">&nbsp;</div>
+          <button id="set-rebuild" class="btn">Rebuild index now</button>
+          <p class="note">Articles are cached locally so search is instant and works offline.
+             The index refreshes itself once a day.</p>
+        </div>
+
+        <div class="set-group">
+          <div class="set-label">Shopify store</div>
+          <input id="set-store" type="text" spellcheck="false" class="text-input">
+          <p class="note">The slug in <code>admin.shopify.com/store/&lt;slug&gt;</code>.</p>
+        </div>
+
+        <div class="set-group">
+          <div class="set-label">Gorgias account</div>
+          <input id="set-gorgias" type="text" spellcheck="false" class="text-input">
+          <p class="note">The subdomain in <code>&lt;name&gt;.gorgias.com</code>.</p>
+        </div>
+
+        <div class="set-group">
+          <div class="set-label">Default open mode</div>
+          <label class="check"><input type="checkbox" id="set-wm-mini"> WorkMate opens in a mini window</label>
+          <label class="check"><input type="checkbox" id="set-gg-mini"> Gorgias opens in a mini window</label>
+          <label class="check"><input type="checkbox" id="set-sh-mini"> Tracking opens in a mini window</label>
+          <p class="note">UPS, FedEx and Shopify all block being embedded inside other pages,
+             so &ldquo;mini window&rdquo; is a small separate Chrome window &mdash; your current tab stays put.</p>
+        </div>
+
+        <div class="set-group">
+          <div class="set-label">Shortcuts</div>
+          <p class="note">
+            <b>Alt+Shift+M</b> open toolbox &middot; <b>Ctrl+1&ndash;4</b> switch tool<br>
+            <b>&uarr; &darr;</b> pick article &middot; <b>Enter</b> copy &middot; <b>Shift+Enter</b> open
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer id="status" class="status"></footer>
+    <div id="toast" class="toast" hidden></div>
+  </div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
