@@ -3,13 +3,8 @@
   "name": "Pound List Tool",
   "version": "1.0.0",
   "description": "Call prompts, voicemails, texts and emails for working Dash Pound list leads (Claim 5). Reads the open lead and links warranty leads to the Warranty Upsell Tracker.",
-  "permissions": [
-    "storage",
-    "sidePanel"
-  ],
-  "host_permissions": [
-    "https://dash.metapcs.com/*"
-  ],
+  "permissions": ["storage", "sidePanel"],
+  "host_permissions": ["https://dash.metapcs.com/*"],
   "background": {
     "service_worker": "background.js"
   },
@@ -19,11 +14,11 @@
   "content_scripts": [
     {
       "matches": [
-        "https://dash.metapcs.com/*"
+        "https://dash.metapcs.com/*",
+
+        "https://metapcs-platform.web.app/*"
       ],
-      "js": [
-        "content.js"
-      ],
+      "js": ["content.js"],
       "run_at": "document_idle"
     }
   ],

@@ -30,36 +30,25 @@
   },
   "host_permissions": [
     "https://dash.metapcs.com/*",
+    "https://*.gorgias.com/*",
+    "https://metapcs-platform.web.app/*",
     "https://firestore.googleapis.com/*",
     "https://identitytoolkit.googleapis.com/*",
     "https://securetoken.googleapis.com/*",
     "https://admin.shopify.com/*",
     "https://help.metapcs.com/*"
   ],
-  "optional_host_permissions": [
-    "https://*/*",
-    "https://app.workmatepos.co/*"
-  ],
+  "optional_host_permissions": ["https://*/*", "https://app.workmatepos.co/*"],
   "content_scripts": [
     {
-      "matches": [
-        "https://dash.metapcs.com/*"
-      ],
-      "js": [
-        "Plugins/PoundList-Tool-main/content.js"
-      ],
+      "matches": ["https://dash.metapcs.com/*"],
+      "js": ["Plugins/PoundList-Tool-main/content.js"],
       "run_at": "document_idle"
     },
     {
-      "matches": [
-        "https://admin.shopify.com/*"
-      ],
-      "js": [
-        "Plugins/Warranty-Tool/content.js"
-      ],
-      "css": [
-        "Plugins/Warranty-Tool/content.css"
-      ],
+      "matches": ["https://admin.shopify.com/*"],
+      "js": ["Plugins/Warranty-Tool/content.js"],
+      "css": ["Plugins/Warranty-Tool/content.css"],
       "run_at": "document_idle"
     },
     {
@@ -68,22 +57,14 @@
         "https://*.gorgias.com/*",
         "https://*.workmatepos.co/*"
       ],
-      "js": [
-        "Plugins/metapcs-toolbox/content/linkify.js"
-      ],
-      "css": [
-        "Plugins/metapcs-toolbox/content/linkify.css"
-      ],
+      "js": ["Plugins/metapcs-toolbox/content/linkify.js"],
+      "css": ["Plugins/metapcs-toolbox/content/linkify.css"],
       "run_at": "document_idle",
       "all_frames": true
     },
     {
-      "matches": [
-        "https://admin.shopify.com/*"
-      ],
-      "js": [
-        "Plugins/techbay-planner-plugin/content.js"
-      ],
+      "matches": ["https://admin.shopify.com/*"],
+      "js": ["Plugins/techbay-planner-plugin/content.js"],
       "run_at": "document_idle",
       "all_frames": true
     }
