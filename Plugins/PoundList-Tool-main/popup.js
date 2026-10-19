@@ -242,7 +242,10 @@ function copyButton(getText, label = "Copy", cls = "copy") {
 async function dashTab() {
   const tabs = await chrome.tabs
     .query({
-      url: "https://dash.metapcs.com/*" || "https://metapcs-platform.web.app/*",
+      url: [
+        "https://dash.metapcs.com/*",
+        "https://metapcs-platform.web.app/*",
+      ],
     })
     .catch(() => []);
   if (!tabs.length) return null;
@@ -257,7 +260,11 @@ async function dashTab() {
 async function toDash(msg) {
   const tab = await dashTab();
   if (!tab)
-    return { ok: false, error: "Open the lead on dash.metapcs.com first." };
+    return {
+      ok: false,
+      error:
+        "Open the lead on dash.metapcs.com or metapcs-platform.web.app first.",
+    };
   try {
     return await chrome.tabs.sendMessage(tab.id, msg);
   } catch {
