@@ -13,7 +13,7 @@
 export const DEFAULT_THEME = 'meta-red';
 
 export const THEMES = [
-  { id: 'meta-red',  name: 'META Red',  bg: '#0b0b0c', panel: '#1e1e21', accent: '#e02020' },
+  { id: 'meta-red',  name: 'META Red',  bg: '#000000', panel: '#080808', accent: '#ff1010' },
   { id: 'volt',      name: 'Volt',      bg: '#0a0b08', panel: '#1c1f16', accent: '#c8ff00' },
   { id: 'midnight',  name: 'Midnight',  bg: '#0f1216', panel: '#1c212a', accent: '#5b9dff' },
   { id: 'hot-pink',  name: 'Hot Pink',  bg: '#12080e', panel: '#26141e', accent: '#ff4d9d' },

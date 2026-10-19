@@ -11,20 +11,20 @@
   --radius: 9px;
 
   /* META Red (default) — black / red / white, from metapcs.com */
-  --bg: #0b0b0c;
-  --panel: #151517;
-  --panel-2: #1e1e21;
-  --line: #2b2b30;
-  --line-hover: #3f3f47;
-  --text: #ffffff;
-  --dim: #9a9a9a;
-  --placeholder: #6a6a70;
-  --accent: #e02020;
-  --accent-hover: #f53a3a;
-  --accent-soft: rgba(224, 32, 32, 0.15);
-  --accent-border: rgba(224, 32, 32, 0.45);
-  --on-accent: #ffffff;
-  --mark-bg: rgba(224, 32, 32, 0.30);
+  --bg: #000000;
+  --panel: #080808;
+  --panel-2: #190303;
+  --line: #291010;
+  --line-hover: #4b1f1f;
+  --text: #f5f5f5;
+  --dim: #858585;
+  --placeholder: #858585;
+  --accent: #ff1010;
+  --accent-hover: #ff2a2a;
+  --accent-soft: rgba(255, 16, 16, 0.15);
+  --accent-border: rgba(255, 16, 16, 0.45);
+  --on-accent: #000000;
+  --mark-bg: rgba(255, 16, 16, 0.30);
   --mark-fg: #ffdada;
   --ok: #4ec38a;
   --on-ok: #06180f;

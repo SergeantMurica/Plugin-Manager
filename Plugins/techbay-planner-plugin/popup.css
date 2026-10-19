@@ -1,14 +1,15 @@
 :root {
   color-scheme: dark;
-  --bg: #0b0b0c;
-  --ink: #fff;
-  --muted: #9a9a9a;
-  --line: #2b2b30;
-  --panel: #1e1e21;
-  --control: #151517;
-  --acid: #e02020;
-  --secondary: #25b96f;
-  --orange: #ff805e;
+  --bg: #000000;
+  --ink: #f5f5f5;
+  --muted: #858585;
+  --line: #291010;
+  --panel: #080808;
+  --control: #080808;
+  --acid: #ff1010;
+  --on-accent: #000000;
+  --secondary: #762536;
+  --orange: #ff715b;
 }
 
 :root[data-theme="white"] {
