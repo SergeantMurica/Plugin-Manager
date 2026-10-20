@@ -10,6 +10,9 @@ const DRAFT_KEY = "techbay-work-order-draft-v1";
 const NOTES_KEY = "techbay-work-order-notes-v1";
 const THEME_KEY = "techbay-tool-theme";
 const INITIALS_KEY = "techbay-technician-initials";
+const CONTENT_SCRIPT_PATH = decodeURIComponent(
+  new URL("./content.js", import.meta.url).pathname,
+).replace(/^\/+/, "");
 const form = document.querySelector("#order-form");
 const status = document.querySelector("#status");
 const orderNumber = document.querySelector("#order-number");
@@ -671,7 +674,7 @@ async function sendFillMessage(tabId, values) {
   const message = { type: "TECHBAY_FILL_WORK_ORDER", values };
   const injectedFrames = await chrome.scripting.executeScript({
     target: { tabId, allFrames: true },
-    files: ["content.js"],
+    files: [CONTENT_SCRIPT_PATH],
   });
   const frameIds = [...new Set(injectedFrames.map(({ frameId }) => frameId))];
   const attempts = await Promise.allSettled(
