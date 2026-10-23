@@ -12,9 +12,19 @@
     priority: ["priority"],
     dailyUpdate: ["daily update"],
     checkInNote: ["note"],
+    techNotes: ["tech notes"],
+    callbackNotes: ["callback notes"],
+    hiddenNote: ["hidden note"],
+    completedDate: ["completed date"],
+    assignedStaff: ["assigned staff members", "assigned staff member(s)"],
+    customerItem: ["customer item"],
+    customer: ["customer"],
+    location: ["location"],
+    shipToCustomer: ["ship to customer"],
+    taxExempt: ["tax exempt", "tax exempt?"],
   };
 
-  const APPEND_FIELDS = new Set(["checkInNote"]);
+  const APPEND_FIELDS = new Set(["checkInNote", "techNotes", "callbackNotes", "hiddenNote"]);
 
   function normalize(value) {
     return value
@@ -187,13 +197,29 @@
         ? control.textContent
         : control.value;
     if ((current || "").includes(value.trim())) return;
-    const combined = current?.trim()
-      ? `${current.trimEnd()}\n\n${value}`
+    const combined = current
+      ? `${current}\n\n${value}`
       : value;
     dispatchValue(control, combined);
   }
 
   async function setControlValue(control, value) {
+    if (control instanceof HTMLInputElement && control.type === "checkbox") {
+      const wanted = normalize(value);
+      if (!["true", "false", "yes", "no"].includes(wanted)) return false;
+      const checked = ["true", "yes"].includes(wanted);
+      if (control.checked !== checked) control.click();
+      return control.checked === checked;
+    }
+    if (control instanceof HTMLSelectElement) {
+      const option = [...control.options].find((item) =>
+        normalize(item.value) === normalize(value) ||
+        normalize(item.textContent || "") === normalize(value),
+      );
+      if (!option) return false;
+      dispatchValue(control, option.value);
+      return control.value === option.value;
+    }
     if (control instanceof HTMLInputElement && control.type === "radio") {
       const group = [
         ...document.querySelectorAll('input[type="radio"]'),
@@ -239,7 +265,7 @@
     const wanted = normalize(value);
     const option = options.find((candidate) => {
       const text = normalize(candidate.textContent || "");
-      return text === wanted || text.startsWith(`${wanted} `);
+      return text === wanted;
     });
 
     if (option) {
@@ -278,7 +304,69 @@
     return new Promise((resolve) => setTimeout(resolve, milliseconds));
   }
 
-  async function fillWorkOrder(values) {
+  function readValue(control) {
+    if (control instanceof HTMLInputElement && control.type === "checkbox")
+      return String(control.checked);
+    if (control instanceof HTMLSelectElement)
+      return control.selectedOptions[0]?.textContent || "";
+    return control.isContentEditable || !("value" in control)
+      ? control.textContent || ""
+      : control.value;
+  }
+
+  function readWorkOrder() {
+    const fields = {};
+    for (const [name, labels] of Object.entries(FIELD_LABELS)) {
+      const control = findField(labels, true);
+      if (control) fields[name] = readValue(control);
+    }
+    return fields;
+  }
+
+  function readOrderList() {
+    const orders = [];
+    let listDetected = false;
+    for (const table of document.querySelectorAll('table, [role="table"], [role="grid"]')) {
+      const rows = [...table.querySelectorAll('tr, [role="row"]')];
+      const header = rows.find((row) =>
+        [...row.querySelectorAll('th, [role="columnheader"], td')]
+          .some((cell) => normalize(cell.textContent || "").replace(/[↑↓↕]/g, "").trim() === "work order"),
+      );
+      if (!header) continue;
+      listDetected = true;
+      const headers = [...header.querySelectorAll('th, [role="columnheader"], td')]
+        .map((cell) => normalize(cell.textContent || "").replace(/[↑↓↕]/g, "").trim());
+      const orderIndex = headers.indexOf("work order");
+      for (const row of rows) {
+        if (row === header || !isVisible(row)) continue;
+        const cells = [...row.querySelectorAll('td, [role="cell"], [role="gridcell"]')];
+        const orderCell = cells[orderIndex];
+        const number = orderCell?.textContent?.match(/SO-#\d+/i)?.[0];
+        if (!number) continue;
+        const columns = {};
+        headers.forEach((name, index) => {
+          if (name && !name.includes("product") && cells[index])
+            columns[name] = cells[index].textContent.trim();
+        });
+        const fields = {};
+        for (const [name, labels] of Object.entries(FIELD_LABELS)) {
+          const key = labels.find((label) => Object.hasOwn(columns, label));
+          if (key) fields[name] = columns[key];
+        }
+        orders.push({ number, fields, columns });
+      }
+    }
+    return { orders, listDetected };
+  }
+
+  function readListName() {
+    const selected = [...document.querySelectorAll(
+      '[role="tab"][aria-selected="true"], [role="tab"][data-state="active"], button[aria-pressed="true"]',
+    )].find(isVisible);
+    return (selected?.textContent || "").replace(/\s+/g, " ").trim().slice(0, 100);
+  }
+
+  async function fillWorkOrder(values, allowEmpty = false) {
     let filled = 0;
     const missing = [];
     const fieldValues = {
@@ -289,16 +377,22 @@
       backup: { yes: "Yes", no: "No" }[values.backup] || values.backup,
     };
     for (const [name, labels] of Object.entries(FIELD_LABELS)) {
-      const value = String(fieldValues[name] ?? "").trim();
-      if (!value) continue;
+      if (!Object.hasOwn(fieldValues, name)) continue;
+      const value = String(fieldValues[name] ?? "");
+      if (!value.trim() && (!allowEmpty || APPEND_FIELDS.has(name))) continue;
 
-      const control = findField(labels, name === "checkInNote");
+      let control = findField(labels, APPEND_FIELDS.has(name));
+      let noteValue = value;
+      if (!control && ["techNotes", "callbackNotes"].includes(name)) {
+        control = findField(FIELD_LABELS.checkInNote, true);
+        noteValue = `${name === "techNotes" ? "Tech Notes" : "Callback Notes"}:\n${value}`;
+      }
       if (!control) {
         missing.push(name === "makeModel" ? "Make/Model" : name);
         continue;
       }
       if (APPEND_FIELDS.has(name)) {
-        appendValue(control, value);
+        appendValue(control, noteValue);
         filled += 1;
       } else if (await setControlValue(control, value)) {
         filled += 1;
@@ -337,8 +431,13 @@
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type === "TECHBAY_READ_ORDERS") {
+      const fields = readWorkOrder();
+      sendResponse({ ok: true, ...readOrderList(), listName: readListName(), fields, fieldCount: Object.keys(fields).length });
+      return false;
+    }
     if (message?.type !== "TECHBAY_FILL_WORK_ORDER") return false;
-    fillWorkOrder(message.values || {})
+    fillWorkOrder(message.values || {}, message.allowEmpty === true)
       .then(sendResponse)
       .catch((error) =>
         sendResponse({

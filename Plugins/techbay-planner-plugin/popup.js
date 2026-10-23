@@ -5,6 +5,9 @@ import {
   serviceTypesByDevice,
 } from "./lib/template-data.js";
 import { DEFAULT_THEME, THEMES } from "./lib/themes.js";
+import { orderContext } from "./lib/orders.js";
+import { createOrderList } from "./lib/order-list.js";
+import { fillOrder, requestWorkMateAccess } from "./lib/workmate-client.js";
 
 const DRAFT_KEY = "techbay-work-order-draft-v1";
 const NOTES_KEY = "techbay-work-order-notes-v1";
@@ -51,10 +54,13 @@ const checkInFieldNames = new Set([
 ]);
 let activeTabId;
 let activeOrderNumber = "";
+let activeOrderUrl = "";
+let tabRefreshVersion = 0;
 let draftSaveTimer;
 const notes = {};
 const noteOrder = [];
 let activeNoteId = "";
+const orderList = createOrderList(showStatus);
 
 function todayLabel() {
   const date = new Date();
@@ -72,14 +78,7 @@ function updateSubmitLabel(tabName) {
 }
 
 function getOrderNumber(url = "") {
-  const match = url.match(/work-orders\/([^/?#]+)/i);
-  if (!match) return "";
-
-  try {
-    return decodeURIComponent(match[1]).replace(/^SO-#/i, "SO-#");
-  } catch {
-    return match[1];
-  }
+  return orderContext(url)?.number || "";
 }
 
 function applyTheme(themeId) {
@@ -568,11 +567,12 @@ function updatePreviews() {
 
 function noteLabel(id, index) {
   const draft = notes[id] || {};
+  const number = getOrderNumber(draft.orderUrl);
   const title = (draft.makeModel || draft.issues || "")
     .trim()
     .replace(/\s+/g, " ")
     .slice(0, 32);
-  return `${index + 1}. ${title || "New note"}`;
+  return `${index + 1}. ${number ? `${number} / ` : ""}${title || "New note"}`;
 }
 
 function renderNoteOptions() {
@@ -584,6 +584,7 @@ function renderNoteOptions() {
 
 function collectDraft() {
   const draft = Object.fromEntries(new FormData(form).entries());
+  if (notes[activeNoteId]?.orderUrl) draft.orderUrl = notes[activeNoteId].orderUrl;
   delete draft.workDate;
   for (const checkbox of form.querySelectorAll(
     'input[type="checkbox"][name]',
@@ -668,67 +669,94 @@ function saveDraft(immediate = false) {
 }
 
 async function sendFillMessage(tabId, values) {
-  const message = { type: "TECHBAY_FILL_WORK_ORDER", values };
-  const injectedFrames = await chrome.scripting.executeScript({
-    target: { tabId, allFrames: true },
-    files: ["content.js"],
-  });
-  const frameIds = [...new Set(injectedFrames.map(({ frameId }) => frameId))];
-  const attempts = await Promise.allSettled(
-    frameIds.map((frameId) =>
-      chrome.tabs.sendMessage(tabId, message, { frameId }),
-    ),
-  );
-  const responses = attempts
-    .filter((attempt) => attempt.status === "fulfilled" && attempt.value?.ok)
-    .map((attempt) => attempt.value);
-
-  if (!responses.length) {
-    throw new Error(
-      "Could not reach a WorkMate frame. Reload Shopify and try again.",
-    );
-  }
-
-  responses.sort(
-    (first, second) =>
-      second.filled - first.filled || second.controlCount - first.controlCount,
-  );
-  return responses[0];
+  const tab = await chrome.tabs.get(tabId);
+  if (getOrderNumber(tab.url) !== values.orderNumber)
+    throw new Error("The active work order changed. Try again on the intended order.");
+  return fillOrder(tabId, tab.url, values);
 }
 
 async function refreshActiveTab() {
+  const version = ++tabRefreshVersion;
   const [tab] = await chrome.tabs.query({
     active: true,
-    lastFocusedWindow: true,
+    currentWindow: true,
   });
+  if (version !== tabRefreshVersion) return;
   activeTabId = tab?.id;
+  const context = orderContext(tab?.url);
   const detectedOrder = getOrderNumber(tab?.url);
   activeOrderNumber = detectedOrder;
-  orderNumber.textContent = detectedOrder || "No order detected";
+  if (context?.number && context.url !== activeOrderUrl && activeNoteId) {
+    saveDraft(true);
+    let id = noteOrder.find((key) => notes[key].orderUrl === context.url);
+    if (!id) {
+      id = crypto.randomUUID();
+      notes[id] = { orderUrl: context.url };
+      noteOrder.push(id);
+    }
+    loadNote(id);
+  }
+  activeOrderUrl = context?.url || "";
+  orderNumber.textContent = detectedOrder || "Local work order list";
   connection.classList.remove("ready", "error");
 
-  if (detectedOrder && /admin\.shopify\.com/i.test(tab?.url ?? "")) {
+  if (orderContext(tab?.url)) {
     connection.classList.add("ready");
     connection.setAttribute("aria-label", "Shopify Admin tab active");
-    showStatus("Ready to fill the active Work Mate order.");
+    showStatus(detectedOrder
+      ? "Ready to fill the active Work Mate order."
+      : "List mode. Pull visible rows to store them locally.");
   } else {
     connection.classList.add("error");
     connection.setAttribute(
       "aria-label",
       "Shopify Work Mate order not detected",
     );
+    showStatus("Local list mode. Open a Work Mate list to pull rows, or edit saved drafts here.");
   }
+  await orderList.follow(tab);
 }
 
 // The side panel stays open, so follow the active tab and its URL changes.
-chrome.tabs.onActivated.addListener(() => refreshActiveTab());
+function followActiveTab() {
+  refreshActiveTab().catch((error) => showStatus(error.message, "error"));
+}
+chrome.tabs.onActivated.addListener(followActiveTab);
 chrome.tabs.onUpdated.addListener((id, info) => {
-  if (id === activeTabId && info.url) refreshActiveTab();
+  if (id === activeTabId && (info.url || info.status === "complete")) followActiveTab();
 });
-chrome.windows.onFocusChanged.addListener(() => refreshActiveTab());
+chrome.windows.onFocusChanged.addListener(followActiveTab);
+document.querySelector("#show-active-order").addEventListener("click", followActiveTab);
+document.querySelector("#show-list").addEventListener("click", () => {
+  document.querySelector("#order-list").hidden = false;
+  document.querySelector("#order-workspace").hidden = true;
+  document.querySelector("#reset-button").hidden = true;
+});
+document.querySelector("#load-order-fields").addEventListener("click", async () => {
+  try {
+    const url = activeOrderUrl;
+    const id = activeNoteId;
+    await requestWorkMateAccess();
+    await orderList.capture();
+    if (activeOrderUrl !== url || activeNoteId !== id)
+      throw new Error("The active order or note changed while pulling. Try again.");
+    const order = orderList.getOrder(url);
+    if (!order) throw new Error("No fields were captured for this order.");
+    applyDraft(order.fields);
+    renderServices();
+    updatePreviews();
+    saveDraft(true);
+    showStatus("Current order fields pulled into this note. Existing Shopify notes were not changed.", "success");
+  } catch (error) {
+    showStatus(error.message, "error");
+  }
+});
 
 async function initialize() {
-  await refreshActiveTab();
+  // Select the view before loading drafts or attempting embedded-page capture.
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  orderList.setView(tab);
+  await orderList.initialize();
 
   const stored = await chrome.storage.local.get([
     NOTES_KEY,
@@ -764,6 +792,7 @@ async function initialize() {
   if (migratedLegacyDraft) chrome.storage.local.remove(DRAFT_KEY);
   const theme = await chrome.storage.local.get(THEME_KEY);
   applyTheme(theme[THEME_KEY] || DEFAULT_THEME);
+  await refreshActiveTab();
 }
 
 form.addEventListener("input", () => {
@@ -789,7 +818,7 @@ document.querySelector("#reset-button").addEventListener("click", () => {
     !window.confirm("Clear this note and start it fresh? Other notes are kept.")
   )
     return;
-  notes[activeNoteId] = {};
+  notes[activeNoteId] = { orderUrl: notes[activeNoteId]?.orderUrl };
   loadNote(activeNoteId);
   showStatus("Note cleared.", "success");
 });
@@ -803,7 +832,7 @@ notesSelect.addEventListener("change", () => {
 document.querySelector("#new-note-button").addEventListener("click", () => {
   saveDraft(true);
   const id = crypto.randomUUID();
-  notes[id] = {};
+  notes[id] = activeOrderUrl ? { orderUrl: activeOrderUrl } : {};
   noteOrder.push(id);
   loadNote(id);
   showStatus("New note started. Your other notes are saved.", "success");
@@ -929,6 +958,6 @@ form.addEventListener("submit", async (event) => {
   }
 });
 
-initialize().catch(() =>
-  showStatus("Could not read the active browser tab.", "error"),
+initialize().catch((error) =>
+  showStatus(`Could not initialize Work Mate Assistant: ${error.message}`, "error"),
 );

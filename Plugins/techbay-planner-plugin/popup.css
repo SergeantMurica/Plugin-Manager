@@ -20,6 +20,67 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
+#order-list {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+#list-summary,
+.order-card small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.order-card {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+}
+
+.order-card a {
+  color: var(--acid);
+  font-weight: bold;
+}
+
+.list-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.order-card details > .field {
+  margin-top: 10px;
+}
+
+.order-card dt {
+  color: var(--muted);
+}
+
+.order-card dd {
+  margin: 2px 0 8px;
+  overflow-wrap: anywhere;
+}
+
+.audit-history {
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 10px;
+}
+
 html {
   min-width: 300px;
   width: 100%;
