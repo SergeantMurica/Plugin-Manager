@@ -13,6 +13,9 @@ const DRAFT_KEY = "techbay-work-order-draft-v1";
 const NOTES_KEY = "techbay-work-order-notes-v1";
 const THEME_KEY = "techbay-tool-theme";
 const INITIALS_KEY = "techbay-technician-initials";
+const CONTENT_SCRIPT_PATH = decodeURIComponent(
+  new URL("./content.js", import.meta.url).pathname,
+).replace(/^\/+/, "");
 const form = document.querySelector("#order-form");
 const status = document.querySelector("#status");
 const orderNumber = document.querySelector("#order-number");
@@ -669,10 +672,39 @@ function saveDraft(immediate = false) {
 }
 
 async function sendFillMessage(tabId, values) {
+<<<<<<< HEAD
   const tab = await chrome.tabs.get(tabId);
   if (getOrderNumber(tab.url) !== values.orderNumber)
     throw new Error("The active work order changed. Try again on the intended order.");
   return fillOrder(tabId, tab.url, values);
+=======
+  const message = { type: "TECHBAY_FILL_WORK_ORDER", values };
+  const injectedFrames = await chrome.scripting.executeScript({
+    target: { tabId, allFrames: true },
+    files: [CONTENT_SCRIPT_PATH],
+  });
+  const frameIds = [...new Set(injectedFrames.map(({ frameId }) => frameId))];
+  const attempts = await Promise.allSettled(
+    frameIds.map((frameId) =>
+      chrome.tabs.sendMessage(tabId, message, { frameId }),
+    ),
+  );
+  const responses = attempts
+    .filter((attempt) => attempt.status === "fulfilled" && attempt.value?.ok)
+    .map((attempt) => attempt.value);
+
+  if (!responses.length) {
+    throw new Error(
+      "Could not reach a WorkMate frame. Reload Shopify and try again.",
+    );
+  }
+
+  responses.sort(
+    (first, second) =>
+      second.filled - first.filled || second.controlCount - first.controlCount,
+  );
+  return responses[0];
+>>>>>>> 554f68d80616fa2749fb9d132c26f8f684eeb1a4
 }
 
 async function refreshActiveTab() {
