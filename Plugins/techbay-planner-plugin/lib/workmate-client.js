@@ -1,6 +1,8 @@
 import { orderContext } from "./orders.js";
 
-const contentFile = new URL("../content.js", import.meta.url).pathname.slice(1);
+const contentFile = decodeURIComponent(
+  new URL("../content.js", import.meta.url).pathname,
+).replace(/^\/+/, "");
 
 export async function requestWorkMateAccess() {
   if (!await chrome.permissions.request({ origins: ["https://app.workmatepos.co/*"] }))

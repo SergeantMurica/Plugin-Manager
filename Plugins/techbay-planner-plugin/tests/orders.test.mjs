@@ -125,7 +125,7 @@ const orderSource = await readFile(new URL("../lib/orders.js", import.meta.url),
 const orderImport = `data:text/javascript;base64,${Buffer.from(orderSource).toString("base64")}`;
 const clientSource = (await readFile(new URL("../lib/workmate-client.js", import.meta.url), "utf8"))
   .replace('"./orders.js"', JSON.stringify(orderImport))
-  .replace('new URL("../content.js", import.meta.url).pathname.slice(1)', '"Plugins/techbay-planner-plugin/content.js"');
+  .replaceAll("import.meta.url", JSON.stringify("chrome-extension://test/Plugins/techbay-planner-plugin/lib/workmate-client.js"));
 const client = await import(`data:text/javascript;base64,${Buffer.from(clientSource).toString("base64")}`);
 
 test("probes frames but injects only into the order frame, with correct manager-relative content script", async () => {
@@ -194,4 +194,23 @@ test("missing form fields and failed frame access produce explicit errors", asyn
 test("denied embedded access is reported instead of proceeding", async () => {
   globalThis.chrome.permissions = { request: async () => false };
   await assert.rejects(client.requestWorkMateAccess(), /Allow access/);
+});
+
+test("script path resolution preserves standalone loading and decodes plugin folder names", async () => {
+  const source = await readFile(new URL("../lib/workmate-client.js", import.meta.url), "utf8");
+  for (const [moduleUrl, expected] of [
+    ["chrome-extension://test/lib/workmate-client.js", "content.js"],
+    ["chrome-extension://test/Plugins/Work%20Mate/lib/workmate-client.js", "Plugins/Work Mate/content.js"],
+  ]) {
+    const moduleSource = source
+      .replace('"./orders.js"', JSON.stringify(orderImport))
+      .replaceAll("import.meta.url", JSON.stringify(moduleUrl));
+    const module = await import(`data:text/javascript;base64,${Buffer.from(moduleSource).toString("base64")}`);
+    globalThis.chrome.scripting.executeScript = async (options) => {
+      assert.deepEqual(options.files, [expected]);
+      return [{ frameId: 0 }];
+    };
+    globalThis.chrome.tabs.sendMessage = async () => ({ ok: true, fieldCount: 0, fields: {} });
+    await module.readFrames(12);
+  }
 });
