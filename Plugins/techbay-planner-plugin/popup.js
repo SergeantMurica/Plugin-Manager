@@ -711,14 +711,14 @@ async function refreshActiveTab() {
       ? context.isNew
         ? "Ready to check in a new work order. Fill fields, then review and create it in Work Mate."
         : "Ready to fill the active Work Mate order."
-      : "List mode. Click Pull to read the current page without storing orders.");
+      : "List mode. Tabs pull automatically; use Pull to refresh. Orders are not stored locally.");
   } else {
     connection.classList.add("error");
     connection.setAttribute(
       "aria-label",
       "Shopify Work Mate order not detected",
     );
-    showStatus("Pull-only list mode. Open a Work Mate list and click Pull. No automatic capture.");
+    showStatus("Open a Work Mate list to pull it automatically. Orders are not stored locally.");
   }
   await orderList.follow(tab);
 }
