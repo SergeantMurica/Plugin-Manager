@@ -10,6 +10,7 @@ export function createOrderList(showStatus) {
   let snapshotName = "";
   let activeTab;
   let captureVersion = 0;
+  let automaticPull;
 
   function setView(tab) {
     const context = orderContext(tab?.url);
@@ -90,7 +91,7 @@ export function createOrderList(showStatus) {
     );
     summary.textContent = snapshotName
       ? `${snapshotName}: ${filtered.length} of ${all.length} pulled orders. Temporary snapshot only. Pulling again replaces these rows and drafts; nothing is saved locally.`
-      : "No snapshot. Click Pull visible list / order to read the current page. No automatic pulls or local order storage.";
+      : "No snapshot. Work Mate list tabs pull automatically; use Pull to refresh. Orders are not stored locally.";
     rows.replaceChildren();
     for (const order of filtered) {
       const card = document.createElement("article");
@@ -199,7 +200,7 @@ export function createOrderList(showStatus) {
     }
   }
 
-  async function capture(tab = activeTab) {
+  async function capture(tab = activeTab, automatic = false) {
     const version = ++captureVersion;
     const context = orderContext(tab?.url);
     if (!context) {
@@ -208,12 +209,27 @@ export function createOrderList(showStatus) {
     orders = {};
     snapshotName = "";
     render();
-    const frames = await readFrames(tab.id);
+    let frames;
+    if (automatic) {
+      // Shopify changes the URL before the embedded list has finished rendering.
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      for (let attempt = 0; attempt < 10; attempt++) {
+        if (version !== captureVersion) return;
+        const current = await chrome.tabs.get(tab.id);
+        if (current.url !== tab.url || activeTab?.id !== tab.id) return;
+        frames = await readFrames(tab.id);
+        if (frames.some((frame) => frame.listDetected || frame.orders.length)) break;
+        if (attempt < 9) await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    } else {
+      frames = await readFrames(tab.id);
+    }
     const currentTab = await chrome.tabs.get(tab.id);
     if (version !== captureVersion || activeTab?.id !== tab.id ||
         (!context.number && currentTab.url !== tab.url) ||
         orderContext(currentTab.url)?.url !== context.url ||
         orderContext(currentTab.url)?.listUrl !== context.listUrl) {
+      if (automatic) return;
       throw new Error("The active page changed while reading. Pull again.");
     }
     if (context.number || context.isNew) {
@@ -302,14 +318,30 @@ export function createOrderList(showStatus) {
       render();
     },
     async follow(tab) {
-      if (activeTab?.id !== tab?.id || activeTab?.url !== tab?.url) {
+      const changed = activeTab?.id !== tab?.id || activeTab?.url !== tab?.url;
+      if (changed) {
         captureVersion++;
+        automaticPull = undefined;
         orders = {};
         snapshotName = "";
         render();
       }
       activeTab = tab;
       setView(tab);
+      const context = orderContext(tab?.url);
+      if (context && !context.number && !context.isNew &&
+          tab.status !== "loading" && !snapshotName && !automaticPull) {
+        const pending = capture(tab, true);
+        automaticPull = pending;
+        try {
+          await pending;
+        } catch (error) {
+          if (activeTab?.id === tab.id && activeTab?.url === tab.url)
+            showStatus(`Automatic pull failed: ${error.message} Click Pull to retry or grant embedded-page access.`, "error");
+        } finally {
+          if (automaticPull === pending) automaticPull = undefined;
+        }
+      }
     },
   };
 }
