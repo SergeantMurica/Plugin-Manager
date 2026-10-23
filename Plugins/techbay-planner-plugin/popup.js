@@ -78,7 +78,8 @@ function updateSubmitLabel(tabName) {
 }
 
 function getOrderNumber(url = "") {
-  return orderContext(url)?.number || "";
+  const context = orderContext(url);
+  return context?.isNew ? "New work order" : context?.number || "";
 }
 
 function applyTheme(themeId) {
@@ -682,13 +683,16 @@ async function refreshActiveTab() {
     currentWindow: true,
   });
   if (version !== tabRefreshVersion) return;
+  const changedBrowserTab = activeTabId !== tab?.id;
   activeTabId = tab?.id;
   const context = orderContext(tab?.url);
   const detectedOrder = getOrderNumber(tab?.url);
   activeOrderNumber = detectedOrder;
-  if (context?.number && context.url !== activeOrderUrl && activeNoteId) {
+  if ((context?.number || context?.isNew) &&
+      (context.url !== activeOrderUrl || (context.isNew && changedBrowserTab)) &&
+      activeNoteId) {
     saveDraft(true);
-    let id = noteOrder.find((key) => notes[key].orderUrl === context.url);
+    let id = context.isNew ? "" : noteOrder.find((key) => notes[key].orderUrl === context.url);
     if (!id) {
       id = crypto.randomUUID();
       notes[id] = { orderUrl: context.url };
@@ -697,22 +701,24 @@ async function refreshActiveTab() {
     loadNote(id);
   }
   activeOrderUrl = context?.url || "";
-  orderNumber.textContent = detectedOrder || "Local work order list";
+  orderNumber.textContent = detectedOrder || "Pull-only work order list";
   connection.classList.remove("ready", "error");
 
   if (orderContext(tab?.url)) {
     connection.classList.add("ready");
     connection.setAttribute("aria-label", "Shopify Admin tab active");
     showStatus(detectedOrder
-      ? "Ready to fill the active Work Mate order."
-      : "List mode. Pull visible rows to store them locally.");
+      ? context.isNew
+        ? "Ready to check in a new work order. Fill fields, then review and create it in Work Mate."
+        : "Ready to fill the active Work Mate order."
+      : "List mode. Click Pull to read the current page without storing orders.");
   } else {
     connection.classList.add("error");
     connection.setAttribute(
       "aria-label",
       "Shopify Work Mate order not detected",
     );
-    showStatus("Local list mode. Open a Work Mate list to pull rows, or edit saved drafts here.");
+    showStatus("Pull-only list mode. Open a Work Mate list and click Pull. No automatic capture.");
   }
   await orderList.follow(tab);
 }

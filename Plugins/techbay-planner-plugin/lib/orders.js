@@ -44,6 +44,12 @@ export function orderContext(value) {
   } catch {
     return null;
   }
+  if (number.toLowerCase() === "new") return {
+    listUrl: `${url.origin}/store/${match[1]}/apps/work-mate/work-orders`,
+    url: `${url.origin}/store/${match[1]}/apps/work-mate/work-orders/new`,
+    number: "",
+    isNew: true,
+  };
   if (!/^SO-#\d+$/i.test(number)) return null;
   return {
     listUrl: `${url.origin}/store/${match[1]}/apps/work-mate/work-orders`,
@@ -54,7 +60,7 @@ export function orderContext(value) {
 
 export function listContext(value) {
   const context = orderContext(value);
-  if (!context || context.number) return null;
+  if (!context || context.number || context.isNew) return null;
   const url = new URL(value);
   const ignored = new Set(["sort", "order", "page", "cursor", "after", "before", "limit", "pageSize", "page_size"]);
   const filters = [...url.searchParams]

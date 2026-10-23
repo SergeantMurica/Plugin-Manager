@@ -29,7 +29,7 @@ export async function readFrames(tabId) {
 export async function fillOrder(tabId, url, values, allowEmpty = false) {
   const expected = orderContext(url);
   const tab = await chrome.tabs.get(tabId);
-  if (!expected?.number || orderContext(tab.url)?.url !== expected.url)
+  if (!(expected?.number || expected?.isNew) || orderContext(tab.url)?.url !== expected.url)
     throw new Error("The target tab is no longer on the selected work order.");
   const frames = await readFrames(tabId);
   const frame = frames.sort((a, b) => b.fieldCount - a.fieldCount)[0];

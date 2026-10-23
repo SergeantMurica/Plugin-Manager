@@ -15,11 +15,20 @@ test("recognizes list and order routes, including filters and encoded hashes", (
   assert.equal(orderContext("https://admin.shopify.com/store/meta-pcs/apps/work-mate/work-orders?status=Done").number, "");
   for (const invalid of [
     "https://evil.example/store/meta-pcs/apps/work-mate/work-orders/SO-%23296",
-    "https://admin.shopify.com/store/meta-pcs/apps/work-mate/work-orders/new",
+    "https://admin.shopify.com/store/meta-pcs/apps/work-mate/work-orders/invalid",
     "https://admin.shopify.com/store/meta-pcs/apps/work-mate/work-orders/%XX",
     "https://admin.shopify.com/store/meta-pcs/orders/296",
     "",
   ]) assert.equal(orderContext(invalid), null);
+});
+
+test("new work order route is a form, not a list or a fabricated order number", () => {
+  const newUrl = `${orderContext(url).listUrl}/new`;
+  const context = orderContext(`${newUrl}?source=list`);
+  assert.equal(context.isNew, true);
+  assert.equal(context.number, "");
+  assert.equal(context.url, newUrl);
+  assert.equal(listContext(newUrl), null);
 });
 
 test("all supplied filtered and unfiltered Shopify list URLs select list mode", () => {
@@ -163,6 +172,23 @@ test("note drafts contain additions, not editable copies of captured note histor
   assert.equal(edited.history[0].before, "");
   assert.equal(edited.fields.checkInNote, original.fields.checkInNote);
   assert.deepEqual(pendingValues(edited), { checkInNote: "New callback" });
+});
+
+test("check-in injection supports unsaved new orders and targets only the form frame", async () => {
+  const newUrl = `${orderContext(url).listUrl}/new`;
+  const writes = [];
+  globalThis.chrome.tabs.get = async () => ({ url: newUrl });
+  globalThis.chrome.tabs.sendMessage = async (_id, message, { frameId }) => {
+    if (message.type === "TECHBAY_READ_ORDERS")
+      return { ok: true, fieldCount: frameId === 4 ? 4 : 0, fields: {} };
+    writes.push({ frameId, message });
+    return { ok: true, filled: 2, missing: [] };
+  };
+  const result = await client.fillOrder(12, newUrl, { device: "Laptop", checkInNote: "New check-in" });
+  assert.equal(result.filled, 2);
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].frameId, 4);
+  assert.equal(writes[0].message.values.checkInNote, "New check-in");
 });
 
 test("rejects navigation before injection and never fills a list page", async () => {

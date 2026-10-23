@@ -1,4 +1,4 @@
-import { EDITABLE_FIELDS, NOTE_FIELDS, ORDERS_KEY, LISTS_KEY, editOrder, listContext, mergeList, mergeOrder, orderContext, ordersForList, pendingValues } from "./orders.js";
+import { EDITABLE_FIELDS, NOTE_FIELDS, ORDERS_KEY, LISTS_KEY, editOrder, listContext, mergeOrder, orderContext, pendingValues } from "./orders.js";
 import { fillOrder, readFrames, requestWorkMateAccess, waitForOrder } from "./workmate-client.js";
 
 export function createOrderList(showStatus) {
@@ -6,40 +6,25 @@ export function createOrderList(showStatus) {
   const rows = document.querySelector("#order-rows");
   const search = document.querySelector("#order-search");
   const summary = document.querySelector("#list-summary");
-  const listSelect = document.querySelector("#saved-list-select");
-  const listName = document.querySelector("#saved-list-name");
   let orders = {};
-  let lists = {};
-  let selectedId = "";
+  let snapshotName = "";
   let activeTab;
-  let writeQueue = Promise.resolve();
+  let captureVersion = 0;
 
   function setView(tab) {
-    const isOrder = Boolean(orderContext(tab?.url)?.number);
+    const context = orderContext(tab?.url);
+    const isOrder = Boolean(context?.number || context?.isNew);
     section.hidden = isOrder;
     document.querySelector("#order-workspace").hidden = !isOrder;
     document.querySelector("#reset-button").hidden = !isOrder;
   }
 
-  function persist() {
-    // Serialize writes so rapid edits cannot overwrite a newer local snapshot.
-    const snapshot = structuredClone({
-      [ORDERS_KEY]: orders,
-      [LISTS_KEY]: { lists, selectedId },
-    });
-    const save = writeQueue.then(() =>
-      chrome.storage.local.set(snapshot),
-    );
-    writeQueue = save.catch((error) => showStatus(`Local save failed: ${error.message}`, "error"));
-    return save;
-  }
-
   async function edit(url, field, value) {
+    if (!orders[url]) throw new Error("This snapshot was cleared. Pull the current list again.");
     orders[url] = editOrder(
       orders[url], field, value,
       document.querySelector('[name="checkInInitials"]').value.trim(),
     );
-    await persist();
   }
 
   function button(label, action) {
@@ -62,6 +47,7 @@ export function createOrderList(showStatus) {
 
   async function inject(url, mode = "edits") {
     const order = orders[url];
+    if (!order) throw new Error("This snapshot was cleared. Pull the current list again.");
     const source = mode === "edits"
       ? order
       : { drafts: { ...order.fields, ...order.drafts } };
@@ -73,12 +59,13 @@ export function createOrderList(showStatus) {
       for (const key of Object.keys(values)) if (key !== "dailyUpdate") delete values[key];
     }
     if (!Object.keys(values).length)
-      throw new Error("Edit and save a local field before filling this order.");
+      throw new Error("Edit a field before filling this order.");
     const tab = await chrome.tabs.create({ url, active: false });
     showStatus(`Loading ${order.number} in a background tab...`);
     await waitForOrder(tab.id, url);
     const response = await fillOrder(tab.id, url, values, true);
-    orders[url] = {
+    // A pull or tab change may discard the snapshot while the background tab loads.
+    if (orders[url] === order) orders[url] = {
       ...orders[url],
       history: [...orders[url].history, {
         at: new Date().toISOString(),
@@ -87,7 +74,6 @@ export function createOrderList(showStatus) {
         missing: response.missing,
       }].slice(-100),
     };
-    await persist();
     for (const card of rows.children) card.dispatchEvent(new Event("audit-update"));
     showStatus(
       `${order.number}: filled ${response.filled} fields in a background tab. Review and save in Work Mate.${response.missing.length ? ` Not filled: ${response.missing.join(", ")}.` : ""}`,
@@ -97,23 +83,14 @@ export function createOrderList(showStatus) {
   }
 
   function render() {
-    listSelect.replaceChildren(
-      new Option(`All saved orders (${Object.keys(orders).length})`, ""),
-      ...Object.values(lists).sort((a, b) => a.name.localeCompare(b.name)).map((list) =>
-        new Option(`${list.name} (${ordersForList(orders, lists, list.id).length})`, list.id),
-      ),
-    );
-    listSelect.value = selectedId;
-    listName.value = lists[selectedId]?.name || "";
-    listName.disabled = !selectedId;
-    document.querySelector("#rename-saved-list").disabled = !selectedId;
-    document.querySelector("#open-saved-list").disabled = !selectedId;
     const query = search.value.toLowerCase().trim();
-    const all = ordersForList(orders, lists, selectedId).sort((a, b) => b.capturedAt.localeCompare(a.capturedAt));
+    const all = Object.values(orders);
     const filtered = all.filter((order) =>
       `${order.number} ${Object.values(order.columns || {}).join(" ")} ${Object.values(order.fields).join(" ")} ${Object.values(order.drafts).join(" ")}`.toLowerCase().includes(query),
     );
-    summary.textContent = `${lists[selectedId]?.name || "All saved orders"}: ${filtered.length} of ${all.length} saved orders. Captures accumulate visible rows within this list; visit its other pages and pull again. Local edits are not live Work Mate updates.`;
+    summary.textContent = snapshotName
+      ? `${snapshotName}: ${filtered.length} of ${all.length} pulled orders. Temporary snapshot only. Pulling again replaces these rows and drafts; nothing is saved locally.`
+      : "No snapshot. Click Pull visible list / order to read the current page. No automatic pulls or local order storage.";
     rows.replaceChildren();
     for (const order of filtered) {
       const card = document.createElement("article");
@@ -137,7 +114,7 @@ export function createOrderList(showStatus) {
       const label = document.createElement("label");
       label.className = "field";
       const title = document.createElement("span");
-      title.textContent = "Daily update (local draft)";
+      title.textContent = "Daily update (temporary draft)";
       const daily = document.createElement("textarea");
       daily.rows = 2;
       daily.value = order.drafts.dailyUpdate ?? order.fields.dailyUpdate ?? "";
@@ -149,21 +126,21 @@ export function createOrderList(showStatus) {
       const actions = document.createElement("div");
       actions.className = "list-actions";
       actions.append(
-        button("Save local draft", async () => {
+        button("Keep temporary draft", async () => {
           await edit(order.url, "dailyUpdate", daily.value);
-          showStatus(`${order.number}: Daily update saved locally.`, "success");
+          showStatus(`${order.number}: Daily update kept only in this panel session.`, "success");
         }),
         button("Fill Daily update", async () => {
           await requestWorkMateAccess();
           await edit(order.url, "dailyUpdate", daily.value);
           await inject(order.url, "daily");
         }),
-        button("Fill all local edits", async () => {
+        button("Fill edited fields", async () => {
           await requestWorkMateAccess();
           await edit(order.url, "dailyUpdate", daily.value);
           await inject(order.url);
         }),
-        button("Fill saved fields", async () => {
+        button("Fill pulled fields", async () => {
           await requestWorkMateAccess();
           await edit(order.url, "dailyUpdate", daily.value);
           await inject(order.url, "saved");
@@ -208,7 +185,7 @@ export function createOrderList(showStatus) {
       const history = document.createElement("pre");
       history.className = "audit-history";
       const updateHistory = () => {
-        history.textContent = (orders[order.url].history || []).map((entry) =>
+        history.textContent = (orders[order.url]?.history || []).map((entry) =>
           `${new Date(entry.at).toLocaleString()} ${entry.initials || ""} ${entry.action ? `${entry.action}: ${entry.fields.join(", ")}${entry.missing?.length ? `; not filled: ${entry.missing.join(", ")}` : ""}` : `${EDITABLE_FIELDS[entry.field]}: ${JSON.stringify(entry.before)} -> ${JSON.stringify(entry.after)}`}`,
         ).join("\n") || "No local edits yet.";
       };
@@ -222,34 +199,36 @@ export function createOrderList(showStatus) {
     }
   }
 
-  async function capture(tab = activeTab, automatic = false) {
+  async function capture(tab = activeTab) {
+    const version = ++captureVersion;
     const context = orderContext(tab?.url);
     if (!context) {
-      if (!automatic) throw new Error("Open a Shopify Work Mate list or order, then pull again.");
-      return;
+      throw new Error("Open a Shopify Work Mate list or order, then pull again.");
     }
+    orders = {};
+    snapshotName = "";
+    render();
     const frames = await readFrames(tab.id);
     const currentTab = await chrome.tabs.get(tab.id);
-    if ((!context.number && currentTab.url !== tab.url) ||
+    if (version !== captureVersion || activeTab?.id !== tab.id ||
+        (!context.number && currentTab.url !== tab.url) ||
         orderContext(currentTab.url)?.url !== context.url ||
         orderContext(currentTab.url)?.listUrl !== context.listUrl) {
-      if (!automatic) throw new Error("The active page changed while reading. Pull again.");
-      return;
+      throw new Error("The active page changed while reading. Pull again.");
     }
-    if (context.number) {
+    if (context.number || context.isNew) {
       const frame = frames.sort((a, b) => b.fieldCount - a.fieldCount)[0];
       if (!frame?.fieldCount) {
-        if (!automatic) throw new Error("No order fields found. Wait for Work Mate to load and pull again.");
-        return;
+        throw new Error("No order fields found. Wait for Work Mate to load and pull again.");
       }
       orders[context.url] = mergeOrder(orders[context.url], {
-        url: context.url, number: context.number, fields: frame.fields,
+        url: context.url, number: context.number || "New work order", fields: frame.fields,
       });
+      snapshotName = context.number || "New work order";
     } else {
       const entries = frames.flatMap((frame) => frame.orders);
       if (!entries.length && !frames.some((frame) => frame.listDetected)) {
-        if (!automatic) throw new Error("No visible work-order rows found. Wait for the list to load and pull again.");
-        return;
+        throw new Error("No visible work-order rows found. Wait for the list to load and pull again.");
       }
       for (const entry of entries) {
         const url = `${context.listUrl.replace(/\/$/, "")}/${encodeURIComponent(entry.number)}`;
@@ -263,41 +242,13 @@ export function createOrderList(showStatus) {
       const name = namedFrame?.listName ||
         (!new URL(tab.url).searchParams.get("cf") && locations.length === 1
           ? locations[0] : list.defaultName);
-      lists[list.id] = mergeList(lists[list.id], list, entries.map((entry) =>
-        `${context.listUrl.replace(/\/$/, "")}/${encodeURIComponent(entry.number)}`,
-      ), name);
-      selectedId = list.id;
+      snapshotName = name;
     }
-    await persist();
     render();
-    if (!automatic) showStatus("Captured locally. Existing local edits were kept.", "success");
+    showStatus("Pulled the current page only. This temporary snapshot replaces the previous pull.", "success");
   }
 
   search.addEventListener("input", render);
-  listSelect.addEventListener("change", () => {
-    selectedId = listSelect.value;
-    render();
-    persist().catch((error) => showStatus(error.message, "error"));
-  });
-  document.querySelector("#rename-saved-list").addEventListener("click", async () => {
-    const name = listName.value.trim();
-    if (!selectedId || !name) {
-      showStatus("Select a saved list and enter its name.", "error");
-      return;
-    }
-    lists[selectedId].name = name;
-    try {
-      await persist();
-      render();
-    } catch (error) {
-      showStatus(error.message, "error");
-    }
-  });
-  document.querySelector("#open-saved-list").addEventListener("click", () => {
-    if (lists[selectedId])
-      chrome.tabs.create({ url: lists[selectedId].sourceUrl })
-        .catch((error) => showStatus(error.message, "error"));
-  });
   document.querySelector("#pull-orders").addEventListener("click", async () => {
     try {
       await requestWorkMateAccess();
@@ -307,14 +258,14 @@ export function createOrderList(showStatus) {
     }
   });
   document.querySelector("#fill-daily-updates").addEventListener("click", async (event) => {
-    const targets = ordersForList(orders, lists, selectedId).filter((order) =>
+    const targets = Object.values(orders).filter((order) =>
       Object.hasOwn(order.drafts, "dailyUpdate"),
     );
     if (!targets.length) {
-      showStatus("No saved Daily update drafts. Edit a Daily update first.", "error");
+      showStatus("No temporary Daily update drafts. Pull the current page and edit a Daily update first.", "error");
       return;
     }
-    if (!window.confirm(`Fill ${targets.length} Daily update drafts from "${lists[selectedId]?.name || "All saved orders"}" in new background tabs? Search text does not limit this batch. You must review and save each order in Work Mate.`)) return;
+    if (!window.confirm(`Fill ${targets.length} Daily update drafts from "${snapshotName}" in new background tabs? Search text does not limit this batch. You must review and save each order in Work Mate.`)) return;
     const button = event.currentTarget;
     button.disabled = true;
     try {
@@ -347,18 +298,18 @@ export function createOrderList(showStatus) {
       return orders[url];
     },
     async initialize() {
-      const stored = await chrome.storage.local.get([ORDERS_KEY, LISTS_KEY]);
-      orders = stored[ORDERS_KEY] || {};
-      lists = stored[LISTS_KEY]?.lists || {};
-      selectedId = stored[LISTS_KEY]?.selectedId || "";
-      if (!lists[selectedId]) selectedId = "";
+      await chrome.storage.local.remove([ORDERS_KEY, LISTS_KEY]);
       render();
     },
     async follow(tab) {
+      if (activeTab?.id !== tab?.id || activeTab?.url !== tab?.url) {
+        captureVersion++;
+        orders = {};
+        snapshotName = "";
+        render();
+      }
       activeTab = tab;
-      const context = orderContext(tab?.url);
       setView(tab);
-      if (context) await capture(tab, true);
     },
   };
 }
