@@ -1,7 +1,8 @@
 /*
  * Theme catalogue.
  *
- * Store themes keep each product's signature colours; game themes borrow their franchise palettes.
+ * Store themes keep each product's signature colours; alternate palettes use
+ * plain color names so users can choose by appearance.
  * Every pairing is tuned for WCAG AA (4.5:1 text, 3:1 controls) — run `node lib/contrast.mjs` after edits.
  *
  *   accent      brand colour for buttons, focus rings and switches
@@ -19,14 +20,14 @@ export const THEMES = [
   // ---------- store ----------
   {
     id: "meta",
-    name: "Meta",
-    bg: "#000000",
-    panel: "#080808",
-    line: "#291010",
+    name: "META Red",
+    bg: "#111213",
+    panel: "#1b1d1f",
+    line: "#393b3e",
     text: "#f5f5f5",
-    muted: "#858585",
-    accent: "#ff1010",
-    accentText: "#ff6b7f",
+    muted: "#b0b2b4",
+    accent: "#e53935",
+    accentText: "#ff6b6b",
     onAccent: "#000000",
     secondary: "#762536",
     orange: "#ff715b",
@@ -36,7 +37,7 @@ export const THEMES = [
   },
   {
     id: "nightreaper",
-    name: "Nightreaper",
+    name: "Green",
     bg: "#070a08",
     panel: "#111712",
     line: "#2b392e",
@@ -53,7 +54,7 @@ export const THEMES = [
   },
   {
     id: "hyperbeast",
-    name: "Hyperbeast",
+    name: "Pink",
     bg: "#11071a",
     panel: "#20102c",
     line: "#4b2a58",
@@ -70,7 +71,7 @@ export const THEMES = [
   },
   {
     id: "phoenix",
-    name: "Phoenix",
+    name: "Orange",
     bg: "#0e1330",
     panel: "#1a2247",
     line: "#3d4672",

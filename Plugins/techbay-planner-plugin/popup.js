@@ -74,7 +74,9 @@ function showStatus(message, kind = "") {
 
 function updateSubmitLabel(tabName) {
   submitLabel.textContent =
-    tabName === "service" ? "Copy Tech Notes" : "Fill Check-in and append note";
+    tabName === "service"
+      ? "Copy Tech Notes"
+      : "Fill check-in and append to note";
 }
 
 function getOrderNumber(url = "") {
@@ -434,11 +436,11 @@ function renderPlanResponses() {
     const field = document.createElement("label");
     field.className = "field assumed-issues-field";
     const title = document.createElement("span");
-    title.textContent = "Assumed issue(s)";
+    title.textContent = "Issues to check";
     const textarea = document.createElement("textarea");
     textarea.rows = 3;
     textarea.value = planResponses.assumedIssues;
-    textarea.placeholder = "Enter all assumed issues, one per line.";
+    textarea.placeholder = "List issues to check, one per line.";
     textarea.addEventListener("input", () => {
       planResponses.assumedIssues = textarea.value;
       saveDraft();
@@ -464,7 +466,7 @@ function renderPlanResponses() {
     const guide = document.createElement("details");
     guide.className = "step-guide";
     const guideSummary = document.createElement("summary");
-    guideSummary.textContent = "Suggested steps";
+    guideSummary.textContent = "Reference steps";
     const guideList = document.createElement("ol");
     for (const item of items) {
       const steps = item.steps

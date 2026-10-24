@@ -13,15 +13,15 @@
 export const DEFAULT_THEME = 'meta-red';
 
 export const THEMES = [
-  { id: 'meta-red',  name: 'META Red',  bg: '#000000', panel: '#080808', accent: '#ff1010' },
-  { id: 'volt',      name: 'Volt',      bg: '#0a0b08', panel: '#1c1f16', accent: '#c8ff00' },
-  { id: 'midnight',  name: 'Midnight',  bg: '#0f1216', panel: '#1c212a', accent: '#5b9dff' },
-  { id: 'hot-pink',  name: 'Hot Pink',  bg: '#12080e', panel: '#26141e', accent: '#ff4d9d' },
-  { id: 'ember',     name: 'Ember',     bg: '#120d07', panel: '#241b11', accent: '#ff8c1a' },
-  { id: 'emerald',   name: 'Emerald',   bg: '#06110c', panel: '#13241a', accent: '#2fd18a' },
-  { id: 'violet',    name: 'Violet',    bg: '#0e0a16', panel: '#1f172c', accent: '#a06bff' },
-  { id: 'arctic',    name: 'Arctic',    bg: '#071216', panel: '#12262e', accent: '#34c6e0' },
-  { id: 'daylight',  name: 'Daylight',  bg: '#f4f5f7', panel: '#ffffff', accent: '#d11414' },
+  { id: 'meta-red',  name: 'META Red',  bg: '#111213', panel: '#1b1d1f', accent: '#d32f2f' },
+  { id: 'volt',      name: 'Lime',      bg: '#0a0b08', panel: '#1c1f16', accent: '#c8ff00' },
+  { id: 'midnight',  name: 'Blue',      bg: '#0f1216', panel: '#1c212a', accent: '#5b9dff' },
+  { id: 'hot-pink',  name: 'Pink',      bg: '#12080e', panel: '#26141e', accent: '#ff4d9d' },
+  { id: 'ember',     name: 'Orange',    bg: '#120d07', panel: '#241b11', accent: '#ff8c1a' },
+  { id: 'emerald',   name: 'Green',     bg: '#06110c', panel: '#13241a', accent: '#2fd18a' },
+  { id: 'violet',    name: 'Purple',    bg: '#0e0a16', panel: '#1f172c', accent: '#a06bff' },
+  { id: 'arctic',    name: 'Teal',      bg: '#071216', panel: '#12262e', accent: '#34c6e0' },
+  { id: 'daylight',  name: 'Light',     bg: '#f4f5f7', panel: '#ffffff', accent: '#d11414' },
 ];
 
 export function isTheme(id) {

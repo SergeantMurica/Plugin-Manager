@@ -15,17 +15,17 @@
 */
 
 :root {
-  --bg: #000000;
-  --surface: #080808;
-  --surface-hover: #190303;
-  --surface-active: #230404;
+  --bg: #111213;
+  --surface: #1b1d1f;
+  --surface-hover: #242628;
+  --surface-active: #2b2020;
   --fg: #f5f5f5;
-  --muted: #858585;
-  --muted-hover: #c7c7c7;
-  --line: #291010;
-  --accent: #ff1010;
-  --accent-hover: #ff2a2a;
-  --accent-dark: #760000;
+  --muted: #b0b2b4;
+  --muted-hover: #e5e5e5;
+  --line: #393b3e;
+  --accent: #d32f2f;
+  --accent-hover: #e53935;
+  --accent-dark: #8f2424;
 
   color-scheme: dark;
 }
@@ -47,7 +47,7 @@ body {
     "Segoe UI",
     sans-serif;
   font-size: 12px;
-  line-height: 1;
+  line-height: 1.4;
 }
 
 body {

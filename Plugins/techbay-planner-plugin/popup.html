@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Work Mate Assistant</title>
+    <title>TechBay Work Mate</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
@@ -13,12 +13,12 @@
           <img
             class="brand-logo"
             src="icons/icon128.png"
-            alt="Work Mate Assistant logo"
+            alt="TechBay logo"
           />
         </div>
         <div class="brand-copy">
-          <p class="eyebrow">TECHBAY / WORK MATE</p>
-          <h1>Assistant</h1>
+          <p class="eyebrow">TechBay</p>
+          <h1>Work Mate</h1>
         </div>
         <span
           class="connection"
@@ -29,10 +29,10 @@
         ><label class="theme-control">
           <span class="sr-only">Color theme</span>
           <select id="theme-select" aria-label="Color theme">
-            <option value="meta">Meta</option>
-            <option value="nightreaper">Nightreaper</option>
-            <option value="hyperbeast">Hyperbeast</option>
-            <option value="phoenix">Phoenix</option>
+            <option value="meta">TechBay</option>
+            <option value="nightreaper">Green</option>
+            <option value="hyperbeast">Pink</option>
+            <option value="phoenix">Orange</option>
             <option value="gray">Gray</option>
             <option value="black">Black</option>
             <option value="white">White</option>
@@ -45,7 +45,7 @@
 
       <div class="order-strip">
         <div class="order-info">
-          <span class="order-label">ACTIVE ORDER</span>
+          <span class="order-label">Current work order</span>
           <span class="order-number" id="order-number">No order detected</span>
         </div>
         <label class="field initials-control">
@@ -63,7 +63,7 @@
       <section id="order-list" aria-label="Pulled work orders">
         <div class="section-heading">
           <h2>Work order list</h2>
-          <button class="notes-button" id="pull-orders" type="button">Pull visible list / order</button>
+          <button class="notes-button" id="pull-orders" type="button">Refresh list / order</button>
         </div>
         <label class="field">
           <span>Search pulled orders</span>
@@ -80,7 +80,7 @@
       </div>
 
       <div id="order-workspace" hidden>
-      <button class="notes-button" id="load-order-fields" type="button">Pull current order fields into this note</button>
+      <button class="notes-button" id="load-order-fields" type="button">Import current order fields</button>
       <div class="notes-bar">
         <label class="notes-select">
           <span class="sr-only">Saved notes</span>
@@ -116,7 +116,7 @@
             aria-controls="panel-service"
             data-tab="service"
           >
-            Choose this service
+            Service plan
           </button>
         </nav>
 
@@ -129,7 +129,7 @@
           <section class="section-block" aria-labelledby="device-heading">
             <div class="section-heading">
               <h2 id="device-heading">Device details</h2>
-              <span>WORK ORDER FIELDS</span>
+              <span>Check-in fields</span>
             </div>
 
             <div class="grid grid-3">
@@ -235,7 +235,7 @@
               <textarea
                 name="issues"
                 rows="4"
-                placeholder="Customer complaint or requested service"
+                placeholder="Describe the reported problem"
               ></textarea>
             </label>
             <div class="note-preview">
@@ -257,7 +257,7 @@
         >
           <section class="section-block">
             <div class="section-heading">
-              <h2>Choose this service</h2>
+              <h2>Service plan</h2>
               <span id="service-count">0 selected</span>
             </div>
             <div class="grid grid-3">
@@ -296,7 +296,6 @@
 
         <button class="apply-button" type="submit">
           <span id="submit-label">Fill Check-in and append note</span>
-          <span aria-hidden="true">↗</span>
         </button>
       </form>
       </div>
@@ -305,10 +304,8 @@
         Open a Work Mate list to pull its rows automatically. Use Pull to refresh.
       </div>
       <footer>
-        Work Mate Assistant 1.1 / Pull-only lists.
-        Pulled orders and list drafts are temporary, not stored locally.
-        Check-in/service notes and settings remain saved separately.
-        Injection never clicks Save. Review and submit in Shopify. Products are excluded.
+        Lists and drafts are temporary. Notes and settings are saved separately.
+        Product fields are never changed. Review and save orders in Work Mate.
       </footer>
     </main>
     <script type="module" src="popup.js"></script>
