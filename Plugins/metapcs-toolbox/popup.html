@@ -3,8 +3,7 @@
 <head>
   <meta charset="utf-8">
   <title>META PC Toolbox</title>
-  <!-- must run before the body paints, so themes never flash -->
-  <script src="theme-init.js"></script>
+  <script src="../../theme.js"></script>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
@@ -116,11 +115,6 @@
 
       <!-- ────────────── SETTINGS ────────────── -->
       <section class="panel scroll" id="panel-settings" hidden>
-        <div class="set-group">
-          <div class="set-label">Theme</div>
-          <div class="themes" id="set-themes"></div>
-        </div>
-
         <div class="set-group">
           <div class="set-label">Tools</div>
           <div id="set-tools"></div>

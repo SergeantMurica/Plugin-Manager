@@ -16,6 +16,32 @@ function select(id) {
 }
 
 async function init() {
+  const settings = document.getElementById("pm-settings");
+  const reload = document.getElementById("pm-reload");
+  reload.onclick = () => {
+    const f = [...frames.values()].find((x) => x.classList.contains("active"));
+    if (f) f.src = f.dataset.src;
+  };
+  const picker = document.getElementById("pm-theme");
+  picker.replaceChildren(...PluginManagerTheme.themes.map((theme) => new Option(theme.name, theme.id)));
+  try {
+    picker.value = await PluginManagerTheme.ready;
+  } catch (failure) {
+    const error = document.getElementById("pm-theme-error");
+    error.textContent = `Theme could not be loaded: ${failure.message}`;
+    error.hidden = false;
+    settings.showPopover();
+  }
+  picker.addEventListener("change", async () => {
+    const error = document.getElementById("pm-theme-error");
+    try {
+      await PluginManagerTheme.select(picker.value);
+      error.hidden = true;
+    } catch (failure) {
+      error.textContent = `Theme could not be saved: ${failure.message}`;
+      error.hidden = false;
+    }
+  });
   let plugins = [];
   try { plugins = await (await fetch("generated/plugins.json")).json(); } catch {}
   if (!plugins.length) {
@@ -38,14 +64,6 @@ async function init() {
     viewsEl.append(f);
     frames.set(p.id, f);
   }
-  const spacer = Object.assign(document.createElement("div"), { className: "spacer" });
-  const reload = Object.assign(document.createElement("button"), { className: "reload", textContent: "↻", title: "Reload tab" });
-  reload.onclick = () => {
-    const f = [...frames.values()].find((x) => x.classList.contains("active"));
-    if (f) f.src = f.dataset.src;
-  };
-  tabsEl.append(spacer, reload);
-
   const last = localStorage.getItem(KEY);
   select(tabs.has(last) ? last : plugins[0].id);
 }

@@ -103,31 +103,54 @@ test("warranty prices and persona details survive wording changes", () => {
   }
 });
 
-function scrapeTitle(titleText) {
+function scrapeTitle(titleText, installations = 1, sidebarTitle = "") {
   let result;
+  const listeners = new Set();
+  let observing = 0;
   const paneText = `${titleText}\nCUSTOMER\nRon Pohl\nPHONE\n(216) 571-4875\nEMAIL\nron@example.com\nCREATED BY\nAbandoned cart`;
   const body = { innerText: paneText };
   const pane = { innerText: paneText, parentElement: body };
   const heading = { innerText: titleText, parentElement: pane };
+  const container = { innerText: `${sidebarTitle}\n${paneText}`, parentElement: body };
+  pane.parentElement = container;
+  const sidebar = { innerText: sidebarTitle, parentElement: container };
   const sandbox = {
     chrome: {
-      runtime: { id: "test", onMessage: { addListener() {} } },
+      runtime: { id: "test", onMessage: {
+        addListener(fn) { listeners.add(fn); },
+        removeListener(fn) { listeners.delete(fn); },
+      } },
       storage: { local: { set(data) { result = data.plPage; return Promise.resolve(); } } },
     },
     document: {
       body,
-      querySelectorAll: (selector) => selector.startsWith("h1") ? [heading] : [],
+      querySelectorAll: (selector) => selector.startsWith("h1") ? [...(sidebarTitle ? [sidebar] : []), heading] : [],
       addEventListener() {},
+      removeEventListener() {},
     },
     location: { pathname: "/pound/item/WL-4352", href: "https://dash.metapcs.com/pound/item/WL-4352" },
-    window: { addEventListener() {} },
-    MutationObserver: class { observe() {} },
+    window: { addEventListener() {}, removeEventListener() {} },
+    MutationObserver: class { observe() { observing++; } disconnect() { observing--; } },
     setTimeout,
     clearTimeout,
   };
-  vm.runInNewContext(contentSource, sandbox);
+  const context = vm.createContext(sandbox);
+  for (let i = 0; i < installations; i++) vm.runInContext(contentSource, context);
+  assert.equal(listeners.size, 1);
+  assert.equal(observing, 1);
   return result;
 }
+
+test("Dash reconnection replaces old observers and listeners instead of duplicating them", () => {
+  assert.equal(scrapeTitle("Financing lead — Ron Pohl", 3).leadId, "WL-4352");
+});
+
+test("Dash detail title wins over a different lead title in the sidebar", () => {
+  const page = scrapeTitle("Warranty before it ships · Ron Pohl · MPC2636688", 1, "Financing lead — Someone Else");
+  assert.equal(page.type, "warranty");
+  assert.equal(page.customer, "Ron Pohl");
+  assert.equal(page.order, "MPC2636688");
+});
 
 for (const [title, type] of [
   ["Abandoned cart — Ron Pohl", "abandoned"],

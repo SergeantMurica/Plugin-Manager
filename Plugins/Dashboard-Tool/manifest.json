@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "Dashboard Tool",
+  "version": "2.0.0",
+  "description": "Standalone combined Warranty tracker, Shopify badges and Dash outreach workspace.",
+  "permissions": ["storage", "sidePanel", "scripting", "clipboardWrite", "alarms", "idle"],
+  "host_permissions": [
+    "https://app.ringcentral.com/*",
+    "https://dash.metapcs.com/*",
+    "https://metapcs-platform.web.app/*",
+    "https://firestore.googleapis.com/*",
+    "https://identitytoolkit.googleapis.com/*",
+    "https://securetoken.googleapis.com/*",
+    "https://admin.shopify.com/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://admin.shopify.com/*"],
+      "js": ["warranty/content.js"],
+      "css": ["warranty/content.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://dash.metapcs.com/*", "https://metapcs-platform.web.app/*"],
+      "js": ["outreach/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "warranty/icons/icon16.png",
+    "48": "warranty/icons/icon48.png",
+    "128": "warranty/icons/icon128.png"
+  },
+  "side_panel": { "default_path": "popup.html" }
+}

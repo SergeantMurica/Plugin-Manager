@@ -2,8 +2,13 @@
 // Dash markup isn't documented, so parsing works on visible text ("PHONE", "CUSTOMER", ...) rather
 // than class names, and every field can be corrected by hand in the panel.
 (() => {
-  if (globalThis.__poundListToolInstalled) return;
-  globalThis.__poundListToolInstalled = true;
+  if (typeof globalThis.__poundListToolInstalled === "function") {
+    try {
+      globalThis.__poundListToolInstalled();
+    } catch (error) {
+      console.warn("Replacing the previous Dash connection:", error.message);
+    }
+  }
 
   const PAGE_KEY = "plPage";
   const alive = () => !!chrome.runtime?.id;
@@ -35,19 +40,23 @@
 
   function findTitle() {
     const heads = document.querySelectorAll("h1, h2, h3, h4, [class*='title' i]");
-    for (const h of heads) {
+    // Sidebar cards also contain lead titles. Only accept a title inside a contact detail pane.
+    const candidates = [...heads].filter((h) => {
       const t = clean(h.innerText);
-      if (t.length < 160 && TYPE_RE.test(t)) return h;
-    }
+      return t.length < 160 && TYPE_RE.test(t) && detailPane(h) !== document.body;
+    });
+    candidates.sort((a, b) => detailPane(a).innerText.length - detailPane(b).innerText.length);
+    if (candidates.length) return candidates[0];
     // No heading matched: take the largest leaf-ish text that looks like a lead title.
     let best = null;
     let bestSize = 0;
     for (const el of document.querySelectorAll("body *")) {
       if (el.children.length > 2) continue;
       const t = clean(el.innerText);
-      if (t.length > 160 || !TYPE_RE.test(t)) continue;
+      if (t.length > 160 || !TYPE_RE.test(t) || detailPane(el) === document.body) continue;
       const size = parseFloat(getComputedStyle(el).fontSize) || 0;
-      if (size > bestSize) {
+      if (!best || detailPane(el).innerText.length < detailPane(best).innerText.length ||
+        (detailPane(el).innerText.length === detailPane(best).innerText.length && size > bestSize)) {
         best = el;
         bestSize = size;
       }
@@ -108,6 +117,7 @@
 
     const titleEl = findTitle();
     const title = clean(titleEl?.innerText);
+    if (!titleEl) return base;
     const pane = detailPane(titleEl);
     const paneText = pane.innerText || "";
     const lines = paneText.split("\n").map(clean).filter(Boolean);
@@ -141,6 +151,7 @@
   let last = "";
   function push(force = false) {
     if (!alive()) return observer.disconnect();
+    if (document.visibilityState === "hidden") return;
     let data;
     try {
       data = scrape();
@@ -161,10 +172,12 @@
   const observer = new MutationObserver(schedule);
   observer.observe(document.body, { childList: true, subtree: true, characterData: true });
   // Switching between Dash tabs makes the visible one the lead the panel shows.
-  document.addEventListener("visibilitychange", () => {
+  const onVisible = () => {
     if (document.visibilityState === "visible") push(true);
-  });
-  window.addEventListener("focus", () => push(true));
+  };
+  const onFocus = () => push(true);
+  document.addEventListener("visibilitychange", onVisible);
+  window.addEventListener("focus", onFocus);
   push(true);
 
   // ---------- actions requested by the side panel ----------
@@ -226,7 +239,7 @@
     return false;
   }
 
-  chrome.runtime.onMessage.addListener((msg, _sender, respond) => {
+  const onMessage = (msg, _sender, respond) => {
     if (msg?.type === "plScrape") {
       push(true);
       respond({ ok: true, data: scrape() });
@@ -236,5 +249,13 @@
       respond({ ok: true, found: tick(String(msg.step || "")) });
     }
     return false;
-  });
+  };
+  chrome.runtime.onMessage.addListener(onMessage);
+  globalThis.__poundListToolInstalled = () => {
+    clearTimeout(timer);
+    observer.disconnect();
+    document.removeEventListener("visibilitychange", onVisible);
+    window.removeEventListener("focus", onFocus);
+    chrome.runtime.onMessage.removeListener(onMessage);
+  };
 })();

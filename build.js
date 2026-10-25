@@ -17,7 +17,19 @@ const dirs = fs.existsSync(pluginsDir)
   ? fs.readdirSync(pluginsDir, { withFileTypes: true }).filter((d) => d.isDirectory() && !d.name.startsWith(".")).map((d) => d.name).sort()
   : [];
 
+const replaced = new Set();
 for (const dir of dirs) {
+  const file = path.join(pluginsDir, dir, "plugin-manager.json");
+  if (!fs.existsSync(path.join(pluginsDir, dir, "manifest.json")) || !fs.existsSync(file)) continue;
+  try {
+    for (const id of readJson(file).replaces || []) replaced.add(id);
+  } catch (error) {
+    console.warn(`Cannot read replacements for ${dir}: ${error.message}`);
+  }
+}
+
+for (const dir of dirs) {
+  if (replaced.has(dir)) continue;
   const mPath = path.join(pluginsDir, dir, "manifest.json");
   if (!fs.existsSync(mPath)) continue;
   let m;

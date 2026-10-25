@@ -155,16 +155,6 @@ textarea:focus-visible {
   text-align: left;
   text-transform: uppercase;
 }
-.theme-control select {
-  width: 86px;
-  min-height: 32px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 5px 6px;
-  background: var(--panel);
-  color: var(--ink);
-  font-size: 12px;
-}
 .sr-only {
   position: absolute;
   width: 1px;
@@ -699,10 +689,6 @@ footer {
     width: 18px;
   }
 
-  .theme-control select {
-    width: 72px;
-  }
-
   .reset-button {
     min-height: 30px;
     padding: 0 7px;
@@ -752,10 +738,6 @@ footer {
 
   .connection {
     width: 16px;
-  }
-
-  .theme-control select {
-    width: 68px;
   }
 
   .grid-2,

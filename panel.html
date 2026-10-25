@@ -18,17 +18,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Plugin Manager</title>
     <link rel="stylesheet" href="panel.css" />
+    <script src="theme.js"></script>
   </head>
 
   <body>
-    <nav id="tabs" role="tablist" aria-label="Plugin tabs">
+    <header class="manager-header">
+      <nav id="tabs" role="tablist" aria-label="Plugin tabs">
       <div class="brand-mark" role="img" aria-label="Plugin Manager">
         <span></span>
         <span></span>
         <span></span>
       </div>
-    </nav>
-
+      </nav>
+      <div class="manager-actions">
+        <button id="pm-reload" class="toolbar-button reload" type="button" title="Reload tab" aria-label="Reload tab">↻</button>
+        <button class="toolbar-button settings-button" type="button" popovertarget="pm-settings" title="Settings" aria-label="Plugin Manager settings">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m9 3-.5 2a8 8 0 0 0-2 1.2l-2-.6-2 3.5L4 10.5a8 8 0 0 0 0 3l-1.5 1.4 2 3.5 2-.6a8 8 0 0 0 2 1.2l.5 2h6l.5-2a8 8 0 0 0 2-1.2l2 .6 2-3.5-1.5-1.4a8 8 0 0 0 0-3l1.5-1.4-2-3.5-2 .6a8 8 0 0 0-2-1.2L15 3Z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+    <section id="pm-settings" class="manager-settings" popover aria-labelledby="pm-settings-title">
+      <h2 id="pm-settings-title">Appearance</h2>
+      <label for="pm-theme">Theme</label>
+      <select id="pm-theme" aria-label="Plugin Manager color theme" title="Applies to Plugin Manager and all plugins"></select>
+      <p>Applies to all plugins.</p>
+      <span id="pm-theme-error" role="alert" hidden></span>
+    </section>
     <main id="views"></main>
 
     <script src="panel.js"></script>

@@ -1,4 +1,3 @@
-import { DEFAULT_THEME, THEMES } from "./lib/themes.js";
 import {
   STAGE_TITLE,
   fallbackVariant,
@@ -9,11 +8,16 @@ import {
 } from "./lib/scripts.js";
 import * as backup from "./lib/backup.js";
 
-const THEME_KEY = "warranty-tool-theme";
+const unified = !!document.getElementById("dashboardWorkspace");
+const dashboard = unified || new URLSearchParams(location.search).has("dashboard")
+  ? await import("../actions.js")
+  : null;
+
 const CACHE_KEY = "wtContacts";
 const AUTH_KEY = "wtAuth";
 const DRAFT_KEY = "wtDraft";
 const PRIVATE_KEY = "wtPrivate";
+let dashLeads = {};
 const STATUSES = [
   "texted",
   "agreed",
@@ -266,7 +270,8 @@ els.authName.addEventListener("blur", () => {
 
 // ---------- state ----------
 async function load() {
-  const d = await chrome.storage.local.get([AUTH_KEY, CACHE_KEY]);
+  const d = await chrome.storage.local.get([AUTH_KEY, CACHE_KEY, ...(unified ? ["plLeads"] : [])]);
+  if (unified) dashLeads = d.plLeads || {};
   auth = d[AUTH_KEY] || null;
   if (auth?.name) {
     const name = capitalizeName(auth.name);
@@ -286,7 +291,7 @@ async function load() {
   }
 }
 chrome.storage.onChanged.addListener((c, area) => {
-  if (area === "local" && (c[AUTH_KEY] || c[CACHE_KEY])) load();
+  if (area === "local" && (c[AUTH_KEY] || c[CACHE_KEY] || (unified && c.plLeads))) load();
 });
 
 // ---------- draft ----------
@@ -391,14 +396,21 @@ function renderTabs() {
   els.tabs.replaceChildren(main, grid);
 }
 
-function copyButton(text, label) {
+function copyButton(text, label, phone = false) {
   const b = document.createElement("button");
   b.type = "button";
   b.className = "copy";
   b.textContent = label;
-  b.title = "Click to copy";
+  b.title = phone && dashboard ? "Copy number and prepare a text if RingCentral is open" : "Click to copy";
   b.addEventListener("click", async () => {
-    await navigator.clipboard.writeText(text);
+    try {
+      await navigator.clipboard.writeText(text);
+      if (phone && dashboard) await dashboard.prepareText(text);
+      showError(els.error, "");
+    } catch (error) {
+      showError(els.error, error.message);
+      return;
+    }
     b.classList.add("done");
     b.textContent = "Copied";
     setTimeout(() => {
@@ -455,8 +467,10 @@ function render() {
     const row = document.createElement("div");
     row.className = "item";
 
-    const title = document.createElement("div");
-    title.className = "phone";
+    const title = dashboard
+      ? dashboard.orderButton(e.order, (message) => showError(els.error, message))
+      : document.createElement("div");
+    title.classList.add("phone");
     title.textContent = e.order;
 
     const meta = document.createElement("div");
@@ -481,7 +495,7 @@ function render() {
       wc.textContent = "Watercooled";
       meta.append(wc);
     }
-    if (e.phone) meta.append(copyButton(e.phone, prettyPhone(e.phone)));
+    if (e.phone) meta.append(copyButton(e.phone, prettyPhone(e.phone), true));
     if (e.email) meta.append(copyButton(e.email, e.email));
     const t = document.createElement("span");
     t.textContent = fmtTime(e.ts);
@@ -489,6 +503,26 @@ function render() {
 
     const side = document.createElement("div");
     side.className = "side";
+    if (unified) {
+      const lead = Object.values(dashLeads).find((lead) =>
+        lead.type === "warranty" && orderKey(lead.order) === orderKey(e.order) &&
+        /^https:\/\/(?:dash\.metapcs\.com|metapcs-platform\.web\.app)\//.test(lead.url || ""));
+      const open = document.createElement("button");
+      open.type = "button";
+      open.className = "del";
+      open.textContent = "\u2197";
+      open.title = lead ? "Open warranty lead on Dash" : "Open warranty order on Dash";
+      open.setAttribute("aria-label", `${open.title}: ${e.order}`);
+      open.addEventListener("click", async () => {
+        try {
+          if (lead) await chrome.tabs.create({ url: lead.url });
+          else await dashboard.prepareOrder(e.order);
+        } catch (error) {
+          showError(els.error, error.message);
+        }
+      });
+      side.append(open);
+    }
 
     const chip = document.createElement("select");
     chip.className = "chip";
@@ -716,6 +750,10 @@ els.clear.addEventListener("click", () => {
 
 els.form.addEventListener("submit", async (ev) => {
   ev.preventDefault();
+  if (unified) {
+    document.dispatchEvent(new Event("dashboard:save-warranty"));
+    return;
+  }
   if (!orderKey(els.order.value)) {
     showError(els.error, "Enter the order number.");
     els.order.focus();
@@ -970,47 +1008,26 @@ chrome.storage.onChanged.addListener((c, area) => {
   if (area === "local" && (c[PRIVATE_KEY] || c[CACHE_KEY])) scheduleBackup();
 });
 
-// ---------- theme ----------
-const themeSelects = document.querySelectorAll(".theme-select");
-for (const s of themeSelects)
-  s.replaceChildren(...THEMES.map((t) => new Option(t.name, t.id)));
-
-function applyTheme(id) {
-  const p =
-    THEMES.find((t) => t.id === id) ||
-    THEMES.find((t) => t.id === DEFAULT_THEME);
-  const light = p.id === "white";
-  const root = document.documentElement;
-  root.dataset.theme = p.id;
-  const vars = {
-    "--bg": p.bg,
-    "--panel": p.panel,
-    "--surface": p.panel,
-    "--line": p.line,
-    "--ink": p.text,
-    "--muted": p.muted,
-    "--accent": p.accent,
-    "--accent-ink": p.onAccent,
-    "--accent-soft": `color-mix(in srgb, ${p.accent} 18%, ${p.panel})`,
-    "--ok": light ? "#17794D" : "#55D69A",
-    "--warn": light ? "#9A5B00" : "#F2BD62",
-    "--bad": light ? "#B3261E" : "#FF8A80",
-    "--danger": light ? "#B3261E" : "#FF8A80",
-    "--idle": p.muted,
-  };
-  for (const k of ["ok", "warn", "bad"])
-    vars[`--${k}-soft`] = `color-mix(in srgb, var(--${k}) 18%, ${p.panel})`;
-  vars["--idle-soft"] = `color-mix(in srgb, ${p.muted} 18%, ${p.panel})`;
-  for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
-  for (const s of themeSelects) s.value = p.id;
-  chrome.storage.local.set({ [THEME_KEY]: p.id });
+if (dashboard) {
+  document.body.classList.add("dashboard-view");
+  dashboard.addPhoneCopy(els.phone, (message) => showError(els.error, message));
 }
-for (const s of themeSelects)
-  s.addEventListener("change", () => applyTheme(s.value));
+if (unified) {
+  const pricing = () => {
+    els.systemPrice.disabled = els.watercooled.checked;
+    document.getElementById("fixedWarrantyPrice").hidden = !els.watercooled.checked;
+  };
+  document.addEventListener("dashboard:customer-changed", () => {
+    updateHint();
+    saveDraft();
+    pricing();
+  });
+  els.watercooled.addEventListener("change", pricing);
+  pricing();
+}
 
 // ---------- init ----------
-(async () => {
-  applyTheme((await chrome.storage.local.get(THEME_KEY))[THEME_KEY]);
+export const ready = (async () => {
   const draft = (await chrome.storage.local.get(DRAFT_KEY))[DRAFT_KEY] || {};
   els.phone.value = draft.phone || "";
   els.email.value = draft.email || "";
@@ -1018,6 +1035,7 @@ for (const s of themeSelects)
   els.name.value = capitalizeName(draft.name || "");
   els.systemPrice.value = draft.systemPrice || "";
   els.watercooled.checked = !!draft.watercooled;
+  if (unified) els.watercooled.dispatchEvent(new Event("change"));
   els.clear.hidden = !(
     draft.phone ||
     draft.email ||

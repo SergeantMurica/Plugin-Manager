@@ -1,7 +1,6 @@
 import { prepare, search, snippet, highlight, escapeHtml } from './lib/search.js';
 import { detect, trackingUrl, CARRIERS } from './lib/carriers.js';
 import { parseSO, soUrl, soLabel, DEFAULT_STORE } from './lib/workmate.js';
-import { THEMES, DEFAULT_THEME, isTheme } from './lib/themes.js';
 import {
   parseTicket, ticketUrl, ticketLabel, DEFAULT_SUBDOMAIN,
 } from './lib/gorgias.js';
@@ -27,7 +26,6 @@ const DEFAULTS = {
   gorgiasMini: true,
   soLinks: true,
   soBadge: true,
-  theme: DEFAULT_THEME,
   tools: { help: true, ship: true, wm: true, gorgias: true },
 };
 
@@ -94,10 +92,6 @@ async function init() {
   recentTickets = stored.recentTickets || [];
   loadIndex(stored.hcIndex);
 
-  // theme-init.js already applied this from localStorage; re-apply so the two
-  // stores agree if settings were changed from another window.
-  applyTheme(settings.theme);
-
   $('hc-format').value = settings.copyFormat;
   $('set-store').value = settings.store;
   $('set-gorgias').value = settings.gorgiasSubdomain;
@@ -109,7 +103,6 @@ async function init() {
 
   wireEvents();
   applyToolVisibility();
-  renderThemes();
   renderToolToggles();
   renderHelp();
   renderShip();
@@ -857,7 +850,6 @@ function renderSettings() {
   state.textContent = indexMeta.count
     ? `${indexMeta.count} articles cached · updated ${ago(indexMeta.builtAt)}`
     : 'No articles cached yet.';
-  renderThemes();
   renderToolToggles();
   renderSites();
 }
@@ -989,52 +981,6 @@ async function renderSites() {
   }
 }
 
-function applyTheme(id) {
-  const theme = isTheme(id) ? id : DEFAULT_THEME;
-  document.documentElement.dataset.theme = theme;
-  settings.theme = theme;
-
-  // mirrored so theme-init.js can read it synchronously on the next open
-  try {
-    localStorage.setItem('toolbox-theme', theme);
-  } catch {
-    /* storage disabled — the popup just falls back to the default */
-  }
-
-  return theme;
-}
-
-function renderThemes() {
-  const box = $('set-themes');
-  box.innerHTML = '';
-
-  for (const theme of THEMES) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = `swatch${theme.id === settings.theme ? ' is-on' : ''}`;
-    btn.title = theme.name;
-
-    const dot = document.createElement('span');
-    dot.className = 'sw-dot';
-    dot.style.setProperty('--sw-bg', theme.bg);
-    dot.style.setProperty('--sw-panel', theme.panel);
-    dot.style.setProperty('--sw-accent', theme.accent);
-
-    const name = document.createElement('span');
-    name.className = 'sw-name';
-    name.textContent = theme.name;
-
-    btn.append(dot, name);
-    btn.addEventListener('click', () => {
-      applyTheme(theme.id);
-      saveSettings();
-      renderThemes();
-    });
-
-    box.appendChild(btn);
-  }
-}
-
 async function rebuildIndex() {
   const btn = $('set-rebuild');
   btn.disabled = true;
@@ -1042,6 +988,8 @@ async function rebuildIndex() {
   renderStatus('Rebuilding index…');
 
   try {
+    const granted = await chrome.permissions.request({ origins: ['https://help.metapcs.com/*'] });
+    if (!granted) throw new Error('Help Center site access was declined. Allow help.metapcs.com to rebuild the index.');
     const result = await chrome.runtime.sendMessage({ type: 'REBUILD_INDEX' });
     if (result && result.ok) {
       const { hcIndex } = await chrome.storage.local.get('hcIndex');

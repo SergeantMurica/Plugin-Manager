@@ -1,24 +1,10 @@
 [
   {
-    "id": "Warranty-Tool",
-    "name": "Warranty Upsell Tracker",
-    "version": "2.2.0",
-    "url": "Plugins/Warranty-Tool/popup.html",
-    "icon": "Plugins/Warranty-Tool/icons/icon16.png"
-  },
-  {
-    "id": "techbay-planner-plugin",
-    "name": "Work Mate Assistant",
-    "version": "1.1.0",
-    "url": "Plugins/techbay-planner-plugin/popup.html",
-    "icon": "Plugins/techbay-planner-plugin/icons/icon16.png"
-  },
-  {
-    "id": "PoundList-Tool-main",
-    "name": "Pound List Tool",
-    "version": "1.0.0",
-    "url": "Plugins/PoundList-Tool-main/popup.html",
-    "icon": "Plugins/PoundList-Tool-main/icons/icon16.png"
+    "id": "Dashboard-Tool",
+    "name": "Dashboard Tool",
+    "version": "2.0.0",
+    "url": "Plugins/Dashboard-Tool/popup.html",
+    "icon": "Plugins/Dashboard-Tool/warranty/icons/icon16.png"
   },
   {
     "id": "metapcs-toolbox",
@@ -26,5 +12,12 @@
     "version": "1.1.0",
     "url": "Plugins/metapcs-toolbox/popup.html",
     "icon": "Plugins/metapcs-toolbox/icons/icon16.png"
+  },
+  {
+    "id": "techbay-planner-plugin",
+    "name": "Work Mate Assistant",
+    "version": "1.1.0",
+    "url": "Plugins/techbay-planner-plugin/popup.html",
+    "icon": "Plugins/techbay-planner-plugin/icons/icon16.png"
   }
 ]

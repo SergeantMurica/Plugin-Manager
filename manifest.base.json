@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "Tabbed host for every plugin in the Plugins folder.",
   "permissions": ["sidePanel", "storage"],
+  "host_permissions": ["https://*.gorgias.com/*"],
   "action": { "default_title": "Plugin Manager" },
   "side_panel": { "default_path": "panel.html" },
   "background": { "service_worker": "background.js" },

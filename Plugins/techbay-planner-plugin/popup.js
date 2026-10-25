@@ -4,14 +4,12 @@ import {
   serviceTypeLabels,
   serviceTypesByDevice,
 } from "./lib/template-data.js";
-import { DEFAULT_THEME, THEMES } from "./lib/themes.js";
 import { orderContext } from "./lib/orders.js";
 import { createOrderList } from "./lib/order-list.js";
 import { fillOrder, requestWorkMateAccess } from "./lib/workmate-client.js";
 
 const DRAFT_KEY = "techbay-work-order-draft-v1";
 const NOTES_KEY = "techbay-work-order-notes-v1";
-const THEME_KEY = "techbay-tool-theme";
 const INITIALS_KEY = "techbay-technician-initials";
 const form = document.querySelector("#order-form");
 const status = document.querySelector("#status");
@@ -19,11 +17,7 @@ const orderNumber = document.querySelector("#order-number");
 const connection = document.querySelector("#connection");
 const submitLabel = document.querySelector("#submit-label");
 const initialsInput = document.querySelector('[name="checkInInitials"]');
-const themeSelect = document.querySelector("#theme-select");
 const notesSelect = document.querySelector("#note-select");
-themeSelect.replaceChildren(
-  ...THEMES.map((theme) => new Option(theme.name, theme.id)),
-);
 const serviceOption = document.querySelector("#service-option");
 const optionalTool = document.querySelector("#optional-tool");
 const selectedOptionsNode = document.querySelector("#selected-options");
@@ -82,28 +76,6 @@ function updateSubmitLabel(tabName) {
 function getOrderNumber(url = "") {
   const context = orderContext(url);
   return context?.isNew ? "New work order" : context?.number || "";
-}
-
-function applyTheme(themeId) {
-  const palette =
-    THEMES.find((item) => item.id === themeId) ||
-    THEMES.find((item) => item.id === DEFAULT_THEME);
-  const theme = palette.id;
-  document.documentElement.dataset.theme = theme;
-  for (const [token, value] of Object.entries(palette)) {
-    if (["id", "name", "onAccent"].includes(token)) continue;
-    document.documentElement.style.setProperty(
-      token === "text" ? "--ink" : token === "accent" ? "--acid" : `--${token}`,
-      value,
-    );
-  }
-  document.documentElement.style.setProperty("--on-accent", palette.onAccent);
-  document.documentElement.style.setProperty(
-    "--control",
-    "color-mix(in srgb, var(--bg), var(--panel) 55%)",
-  );
-  themeSelect.value = theme;
-  chrome.storage.local.set({ [THEME_KEY]: theme });
 }
 
 function currentPlannerDevice() {
@@ -798,8 +770,6 @@ async function initialize() {
   renderNoteOptions();
   saveDraft(true);
   if (migratedLegacyDraft) chrome.storage.local.remove(DRAFT_KEY);
-  const theme = await chrome.storage.local.get(THEME_KEY);
-  applyTheme(theme[THEME_KEY] || DEFAULT_THEME);
   await refreshActiveTab();
 }
 
@@ -876,7 +846,6 @@ document.querySelectorAll(".tab").forEach((tab) => {
   });
 });
 
-themeSelect.addEventListener("change", () => applyTheme(themeSelect.value));
 serviceOption.addEventListener("change", () => {
   if (serviceOption.value) selectedOptions.add(serviceOption.value);
   renderServices();

@@ -56,9 +56,17 @@ body {
   overflow: hidden;
 }
 
-#tabs {
+.manager-header {
   display: flex;
   flex: none;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+}
+
+#tabs {
+  display: flex;
+  flex: 1;
+  min-width: 0;
   align-items: center;
   min-height: 40px;
   height: 40px;
@@ -66,7 +74,6 @@ body {
   gap: 2px;
   overflow-x: auto;
   background: var(--bg);
-  border-bottom: 1px solid var(--line);
   scrollbar-width: none;
 }
 
@@ -145,12 +152,15 @@ body {
   opacity: 1;
 }
 
-.spacer {
-  flex: 1;
-  min-width: 12px;
+.manager-actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding: 0 6px;
+  border-left: 1px solid var(--line);
 }
 
-.reload {
+.toolbar-button {
   display: grid;
   flex: none;
   place-items: center;
@@ -169,13 +179,13 @@ body {
     color 140ms ease;
 }
 
-.reload:hover {
+.toolbar-button:hover {
   border-color: var(--accent-dark);
   background: var(--surface-hover);
   color: var(--accent);
 }
 
-.reload:focus-visible {
+.toolbar-button:focus-visible {
   outline: 1px solid var(--accent);
   outline-offset: 1px;
 }
@@ -185,6 +195,50 @@ body {
   flex: 1;
   min-height: 0;
   background: var(--bg);
+}
+
+.manager-settings {
+  position: fixed;
+  inset: 46px 8px auto auto;
+  width: min(240px, calc(100vw - 16px));
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: 0 8px 28px #0004;
+}
+.manager-settings h2 {
+  margin: 0 0 14px;
+  font-size: 13px;
+}
+.manager-settings label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+}
+.manager-settings select {
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+}
+.manager-settings select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.manager-settings p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+#pm-theme-error:not([hidden]) {
+  display: block;
+  margin-top: 8px;
 }
 
 iframe {

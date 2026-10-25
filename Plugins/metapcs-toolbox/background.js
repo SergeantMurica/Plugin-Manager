@@ -78,6 +78,9 @@ async function buildIndex() {
   building = true;
 
   try {
+    if (!await chrome.permissions.contains({ origins: [`${ORIGIN}/*`] })) {
+      throw new Error('Help Center site access is not enabled. Open Toolbox Settings and click Rebuild index now to allow help.metapcs.com.');
+    }
     const urls = await fetchArticleUrls();
     if (!urls.length) throw new Error('No articles found in sitemap.');
 
@@ -131,7 +134,12 @@ async function buildIndex() {
 }
 
 async function fetchArticleUrls() {
-  const res = await fetch(SITEMAP, { cache: 'no-store' });
+  let res;
+  try {
+    res = await fetch(SITEMAP, { cache: 'no-store', credentials: 'omit' });
+  } catch (error) {
+    throw new Error(`Could not fetch the Help Center sitemap. Check Plugin Manager site access for https://help.metapcs.com in chrome://extensions and your network, then rebuild the index. ${error.message}`);
+  }
   if (!res.ok) throw new Error(`Sitemap returned ${res.status}`);
 
   const xml = await res.text();

@@ -1,4 +1,5 @@
-importScripts("config.js");
+(() => {
+importScripts("warranty/config.js");
 
 const CFG = self.WARRANTY_CONFIG;
 const AUTH_KEY = "wtAuth";
@@ -617,7 +618,12 @@ async function scrub() {
 }
 
 // ---------- messaging / polling ----------
+importScripts("warranty/lib/leads.js");
+const dashboardLeadStore = self.createDashboardLeadStore({ api, getAuth, documents: DOCS });
 const handlers = {
+  dashboardLeadSave: (lead) => dashboardLeadStore.save(lead),
+  dashboardLeadRemove: (lead) => dashboardLeadStore.remove(lead),
+  dashboardLeadRefresh: () => dashboardLeadStore.refresh(),
   signIn,
   signUp,
   signOut,
@@ -662,3 +668,4 @@ chrome.runtime.onInstalled.addListener(() =>
 chrome.runtime.onStartup.addListener(() =>
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }),
 );
+})();
