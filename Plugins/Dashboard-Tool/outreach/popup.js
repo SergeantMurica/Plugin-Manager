@@ -453,6 +453,7 @@ function mergeScrape(lead, p, overwrite) {
     order: p.order,
     lender: p.lender,
     amount: p.amount,
+    systemPrice: p.systemPrice,
   };
   for (const [k, v] of Object.entries(scraped))
     if (v && (overwrite || !l[k])) l[k] = v;

@@ -92,7 +92,7 @@ async function init() {
   const disclosure = document.createElement("details");
   disclosure.className = "outreach-dropdown";
   const summary = document.createElement("summary");
-  summary.textContent = "Call / Text / Ticket";
+  summary.textContent = "Call / Ticket / Text";
   disclosure.append(summary, ...ctt.children);
   ctt.replaceWith(disclosure);
   disclosure.querySelector("h2").remove();

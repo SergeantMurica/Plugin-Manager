@@ -89,19 +89,60 @@
     return "";
   }
 
-  // "Progressive $1,050.00 approved 2026-07-30" may render on one line or split across lines.
+  // Approval cards can put the lender, amount, and approval date on separate lines.
   function approvalsFrom(lines) {
     const out = [];
     for (let i = 0; i < lines.length && out.length < 6; i++) {
-      const m = /^(.*?)\$\s?([\d,]+(?:\.\d{2})?)\s*approved\b\s*(?:on\s*)?(\d{4}-\d{2}-\d{2})?/i.exec(lines[i]);
-      if (!m) continue;
-      let lender = clean(m[1]);
-      const prev = lines[i - 1] || "";
-      if (!lender && prev && !/approvals?$/i.test(prev) && !MONEY_RE.test(prev)) lender = prev;
-      const date = m[3] || ((lines[i + 1] || "").match(/^\d{4}-\d{2}-\d{2}$/) || [""])[0];
-      out.push({ lender: lender.slice(0, 40), amount: m[2], date });
+      const money = MONEY_RE.exec(lines[i]);
+      if (!money) continue;
+      const approvalText = lines.slice(i, i + 3).join(" ").replace(/(\d)approved\b/gi, "$1 approved");
+      if (!/\bapproved\b/i.test(approvalText)) continue;
+
+      let lender = clean(lines[i].slice(0, money.index));
+      if (!lender) {
+        for (let j = i - 1; j >= 0 && j >= i - 2; j--) {
+          const candidate = lines[j];
+          if (/approvals?$/i.test(candidate) || MONEY_RE.test(candidate)) break;
+          lender = candidate;
+          break;
+        }
+      }
+      const date = (approvalText.match(/\b(\d{4}-\d{2}-\d{2})\b/) || ["", ""])[1];
+      out.push({ lender: lender.slice(0, 40), amount: money[1].replace(/,/g, ""), date });
     }
     return out;
+  }
+
+  function priceFromLines(lines, type, order) {
+    if (type === "warranty") {
+      if (!order) return "";
+      const orderPattern = new RegExp(order.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      // Order card renders as "MPC…" / model / "T1 · $1,749.00"; skip the lead title, which also names the order.
+      for (let i = 0; i < lines.length; i++) {
+        if (!orderPattern.test(lines[i]) || TYPE_RE.test(lines[i])) continue;
+        for (let j = i; j <= Math.min(i + 3, lines.length - 1); j++) {
+          if (/warranty options|[23]-year/i.test(lines[j])) break;
+          const match = MONEY_RE.exec(lines[j]);
+          if (match) return match[1].replace(/,/g, "");
+        }
+      }
+      return "";
+    }
+
+    if (type === "abandoned") {
+      const section = lines.findIndex((line) => /abandoned carts?.*\bshopify\b/i.test(line));
+      if (section < 0) return "";
+      for (let i = section + 1; i < Math.min(section + 10, lines.length); i++) {
+        const match = MONEY_RE.exec(lines[i]);
+        if (match) return match[1].replace(/,/g, "");
+      }
+    }
+    return "";
+  }
+
+  function sectionLines(lines, marker, limit) {
+    const start = lines.findIndex((line) => marker.test(line));
+    return start < 0 ? null : lines.slice(start, start + limit);
   }
 
   function scrape() {
@@ -121,6 +162,8 @@
     const pane = detailPane(titleEl);
     const paneText = pane.innerText || "";
     const lines = paneText.split("\n").map(clean).filter(Boolean);
+    const detail = titleEl.closest(".split__detail") || document.body;
+    const pageLines = (detail.innerText || "").split("\n").map(clean).filter(Boolean);
     const fields = {};
     for (const [k, label] of Object.entries(LABELS)) fields[k] = fieldFrom(lines, label);
 
@@ -128,12 +171,17 @@
     const nameFromTitle = parts.find((p, i) => i > 0 && !ORDER_RE.test(p) && !MONEY_RE.test(p)) || "";
     const phone = (fields.phone.match(PHONE_RE) || paneText.match(PHONE_RE) || [""])[0];
     const email = (fields.email.match(EMAIL_RE) || paneText.match(EMAIL_RE) || [""])[0];
-    const approvals = approvalsFrom(lines);
-    const amount = approvals[0]?.amount || (title.match(MONEY_RE) || [])[1] || "";
+    const approvalLines = sectionLines(pageLines, /financing approvals/i, 30) || lines;
+    const approvals = approvalsFrom(approvalLines);
+    const type = typeOf(title);
+    const order = ((title.match(ORDER_RE) || paneText.match(ORDER_RE) || [""])[0]).toUpperCase();
+    const amount = approvals[0]?.amount || (type === "financing"
+      ? ((title.match(MONEY_RE) || [])[1] || "").replace(/,/g, "")
+      : "");
 
     return {
       ...base,
-      type: typeOf(title),
+      type,
       title,
       customer: fields.customer || nameFromTitle,
       phone,
@@ -141,10 +189,11 @@
       createdBy: fields.createdBy,
       claimedBy: fields.claimedBy,
       opened: fields.opened,
-      order: ((title.match(ORDER_RE) || paneText.match(ORDER_RE) || [""])[0]).toUpperCase(),
+      order,
       approvals,
       amount,
       lender: approvals[0]?.lender || "",
+      systemPrice: priceFromLines(pageLines, type, order),
     };
   }
 
