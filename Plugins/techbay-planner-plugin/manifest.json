@@ -18,8 +18,8 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://admin.shopify.com/*"],
-      "js": ["content.js"],
+      "matches": ["https://admin.shopify.com/*", "https://app.workmatepos.co/*"],
+      "js": ["lib/daily-update.js", "content.js"],
       "run_at": "document_idle",
       "all_frames": true
     }

@@ -3,6 +3,7 @@ import { orderContext } from "./orders.js";
 const contentFile = decodeURIComponent(
   new URL("../content.js", import.meta.url).pathname,
 ).replace(/^\/+/, "");
+const dailyUpdateFile = contentFile.replace(/content\.js$/, "lib/daily-update.js");
 
 export async function requestWorkMateAccess() {
   if (!await chrome.permissions.request({ origins: ["https://app.workmatepos.co/*"] }))
@@ -12,7 +13,7 @@ export async function requestWorkMateAccess() {
 export async function readFrames(tabId) {
   const frames = await chrome.scripting.executeScript({
     target: { tabId, allFrames: true },
-    files: [contentFile],
+    files: [dailyUpdateFile, contentFile],
   });
   const attempts = await Promise.allSettled(frames.map(async ({ frameId }) => ({
     frameId,

@@ -6,11 +6,28 @@ export function createOrderList(showStatus) {
   const rows = document.querySelector("#order-rows");
   const search = document.querySelector("#order-search");
   const summary = document.querySelector("#list-summary");
+  const dailyDate = document.querySelector("#daily-update-date");
+  const selected = new Set();
+  dailyDate.value = globalThis.TechbayDailyUpdate.today();
   let orders = {};
   let snapshotName = "";
   let activeTab;
   let captureVersion = 0;
   let automaticPull;
+  let batchRunning = false;
+
+  function updateSelection() {
+    document.querySelector("#selected-order-count").textContent = `${selected.size} selected`;
+  }
+
+  function stampOptions() {
+    const options = {
+      date: dailyDate.value,
+      initials: document.querySelector('[name="checkInInitials"]').value.trim(),
+    };
+    globalThis.TechbayDailyUpdate.stamp("", options.date, options.initials);
+    return options;
+  }
 
   function setView(tab) {
     const context = orderContext(tab?.url);
@@ -46,9 +63,9 @@ export function createOrderList(showStatus) {
     return node;
   }
 
-  async function inject(url, mode = "edits") {
-    const order = orders[url];
+  async function inject(order, mode = "edits", stamp, original = order) {
     if (!order) throw new Error("This snapshot was cleared. Pull the current list again.");
+    const url = order.url;
     const source = mode === "edits"
       ? order
       : { drafts: { ...order.fields, ...order.drafts } };
@@ -59,22 +76,42 @@ export function createOrderList(showStatus) {
     if (mode === "daily") {
       for (const key of Object.keys(values)) if (key !== "dailyUpdate") delete values[key];
     }
-    if (!Object.keys(values).length)
+    if (!stamp && !Object.keys(values).length)
       throw new Error("Edit a field before filling this order.");
     const tab = await chrome.tabs.create({ url, active: false });
     showStatus(`Loading ${order.number} in a background tab...`);
     await waitForOrder(tab.id, url);
+    if (stamp) {
+      let text = order.drafts.dailyUpdate;
+      if (!Object.hasOwn(order.drafts, "dailyUpdate")) {
+        // List cells may be absent or truncated; stamp the full live note instead.
+        const frames = await readFrames(tab.id);
+        const frame = frames.sort((a, b) => b.fieldCount - a.fieldCount)[0];
+        if (!frame || !Object.hasOwn(frame.fields, "dailyUpdate"))
+          throw new Error("Daily update was not found. Nothing was filled; the tab was left open.");
+        text = frame.fields.dailyUpdate;
+      }
+      values.dailyUpdate = globalThis.TechbayDailyUpdate.stamp(text, stamp.date, stamp.initials);
+    }
     const response = await fillOrder(tab.id, url, values, true);
     // A pull or tab change may discard the snapshot while the background tab loads.
-    if (orders[url] === order) orders[url] = {
-      ...orders[url],
-      history: [...orders[url].history, {
-        at: new Date().toISOString(),
-        action: "Filled for review (not saved in Work Mate)",
-        fields: Object.keys(values),
-        missing: response.missing,
-      }].slice(-100),
-    };
+    if (orders[url] === original) {
+      if (stamp && response.filled && !response.missing.length) {
+        orders[url] = editOrder(orders[url], "dailyUpdate", values.dailyUpdate, stamp.initials);
+        for (const card of rows.children) card.dispatchEvent(new CustomEvent("daily-update-filled", {
+          detail: { url, value: values.dailyUpdate },
+        }));
+      }
+      orders[url] = {
+        ...orders[url],
+        history: [...orders[url].history, {
+          at: new Date().toISOString(),
+          action: "Filled for review (not saved in Work Mate)",
+          fields: Object.keys(values),
+          missing: response.missing,
+        }].slice(-100),
+      };
+    }
     for (const card of rows.children) card.dispatchEvent(new Event("audit-update"));
     showStatus(
       `${order.number}: filled ${response.filled} fields in a background tab. Review and save in Work Mate.${response.missing.length ? ` Not filled: ${response.missing.join(", ")}.` : ""}`,
@@ -93,11 +130,24 @@ export function createOrderList(showStatus) {
       ? `${snapshotName}: ${filtered.length} of ${all.length} pulled orders. Temporary snapshot only. Pulling again replaces these rows and drafts; nothing is saved locally.`
       : "No snapshot. Work Mate list tabs pull automatically; use Pull to refresh. Orders are not stored locally.";
     rows.replaceChildren();
+    updateSelection();
     for (const order of filtered) {
       const card = document.createElement("article");
       card.className = "order-card";
       const heading = document.createElement("div");
       heading.className = "list-actions";
+      const selection = document.createElement("label");
+      selection.className = "order-selection";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = selected.has(order.url);
+      checkbox.setAttribute("aria-label", `Select ${order.number}`);
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) selected.add(order.url);
+        else selected.delete(order.url);
+        updateSelection();
+      });
+      selection.append(checkbox, "Select");
       const link = document.createElement("a");
       link.href = order.url;
       link.target = "_blank";
@@ -109,7 +159,7 @@ export function createOrderList(showStatus) {
       });
       const info = document.createElement("span");
       info.textContent = [order.fields.location || order.columns?.location, order.columns?.customer, order.columns?.status].filter(Boolean).join(" / ");
-      heading.append(link, info);
+      heading.append(selection, link, info);
       const captured = document.createElement("small");
       captured.textContent = `Captured ${new Date(order.capturedAt).toLocaleString()}`;
       const label = document.createElement("label");
@@ -120,13 +170,24 @@ export function createOrderList(showStatus) {
       daily.rows = 2;
       daily.value = order.drafts.dailyUpdate ?? order.fields.dailyUpdate ?? "";
       daily.setAttribute("aria-label", `${order.number} Daily update`);
-      daily.addEventListener("change", () => {
+      card.addEventListener("daily-update-filled", (event) => {
+        if (event.detail.url === order.url) daily.value = event.detail.value;
+      });
+      daily.addEventListener("input", () => {
         edit(order.url, "dailyUpdate", daily.value).catch((error) => showStatus(error.message, "error"));
+        selected.add(order.url);
+        checkbox.checked = true;
+        updateSelection();
       });
       label.append(title, daily);
       const actions = document.createElement("div");
       actions.className = "list-actions";
       actions.append(
+        button("Update date / initials & fill", async () => {
+          const stamp = stampOptions();
+          await requestWorkMateAccess();
+          await inject(orders[order.url], "daily", stamp);
+        }),
         button("Keep temporary draft", async () => {
           await edit(order.url, "dailyUpdate", daily.value);
           showStatus(`${order.number}: Daily update kept only in this panel session.`, "success");
@@ -134,17 +195,17 @@ export function createOrderList(showStatus) {
         button("Fill Daily update", async () => {
           await requestWorkMateAccess();
           await edit(order.url, "dailyUpdate", daily.value);
-          await inject(order.url, "daily");
+          await inject(orders[order.url], "daily");
         }),
         button("Fill edited fields", async () => {
           await requestWorkMateAccess();
           await edit(order.url, "dailyUpdate", daily.value);
-          await inject(order.url);
+          await inject(orders[order.url]);
         }),
         button("Fill pulled fields", async () => {
           await requestWorkMateAccess();
           await edit(order.url, "dailyUpdate", daily.value);
-          await inject(order.url, "saved");
+          await inject(orders[order.url], "saved");
         }),
       );
       const details = document.createElement("details");
@@ -207,6 +268,7 @@ export function createOrderList(showStatus) {
       throw new Error("Open a Shopify Work Mate list or order, then pull again.");
     }
     orders = {};
+    selected.clear();
     snapshotName = "";
     render();
     let frames;
@@ -265,6 +327,17 @@ export function createOrderList(showStatus) {
   }
 
   search.addEventListener("input", render);
+  document.querySelector("#select-visible-orders").addEventListener("click", () => {
+    for (const card of rows.children) {
+      const checkbox = card.querySelector('input[type="checkbox"]');
+      checkbox.checked = true;
+      checkbox.dispatchEvent(new Event("change"));
+    }
+  });
+  document.querySelector("#clear-order-selection").addEventListener("click", () => {
+    selected.clear();
+    render();
+  });
   document.querySelector("#pull-orders").addEventListener("click", async () => {
     try {
       await requestWorkMateAccess();
@@ -273,23 +346,28 @@ export function createOrderList(showStatus) {
       showStatus(error.message, "error");
     }
   });
-  document.querySelector("#fill-daily-updates").addEventListener("click", async (event) => {
-    const targets = Object.values(orders).filter((order) =>
-      Object.hasOwn(order.drafts, "dailyUpdate"),
-    );
-    if (!targets.length) {
-      showStatus("No temporary Daily update drafts. Pull the current page and edit a Daily update first.", "error");
-      return;
-    }
-    if (!window.confirm(`Fill ${targets.length} Daily update drafts from "${snapshotName}" in new background tabs? Search text does not limit this batch. You must review and save each order in Work Mate.`)) return;
+  async function fillSelected(event, updateStamp) {
+    if (batchRunning) return;
     const button = event.currentTarget;
-    button.disabled = true;
     try {
+      const targets = Object.values(orders).filter((order) => selected.has(order.url));
+      if (!targets.length)
+        throw new Error("Select at least one order first.");
+      if (!updateStamp && targets.some((order) => !Object.hasOwn(order.drafts, "dailyUpdate")))
+        throw new Error("Some selected orders have no Daily update draft. Edit them or use Update date / initials & fill selected.");
+      const stamp = updateStamp ? stampOptions() : undefined;
+      // Keep every target and value stable even if the panel follows another tab.
+      const snapshots = targets.map((order) => ({ order: structuredClone(order), original: order }));
+      if (!window.confirm(`Fill ${snapshots.length} selected Daily updates from "${snapshotName}" in new background tabs? Selected orders hidden by search are included. You must review and save each order in Work Mate.`)) return;
+      batchRunning = true;
+      button.disabled = true;
       await requestWorkMateAccess();
       const failures = [];
-      for (const order of targets) {
+      let completed = 0;
+      for (const { order, original } of snapshots) {
+        showStatus(`Processing selected Daily updates: ${++completed} of ${snapshots.length} (${order.number})...`);
         try {
-          const response = await inject(order.url, "daily");
+          const response = await inject(order, "daily", stamp, original);
           if (!response.filled || response.missing.length)
             failures.push(`${order.number}: ${response.missing.join(", ") || "No fields filled"}`);
         } catch (error) {
@@ -297,15 +375,18 @@ export function createOrderList(showStatus) {
         }
       }
       showStatus(
-        `Processed ${targets.length} Daily update drafts. Review and save each background tab in Work Mate.${failures.length ? ` Failed: ${failures.join(" / ")}` : ""}`,
+        `Processed ${snapshots.length} selected Daily updates: ${snapshots.length - failures.length} filled, ${failures.length} failed. Review and save each background tab in Work Mate.${failures.length ? ` Failed: ${failures.join(" / ")}` : ""}`,
         failures.length ? "error" : "success",
       );
     } catch (error) {
       showStatus(error.message, "error");
     } finally {
+      batchRunning = false;
       button.disabled = false;
     }
-  });
+  }
+  document.querySelector("#fill-daily-updates").addEventListener("click", (event) => fillSelected(event, false));
+  document.querySelector("#stamp-daily-updates").addEventListener("click", (event) => fillSelected(event, true));
 
   return {
     capture,
@@ -323,6 +404,7 @@ export function createOrderList(showStatus) {
         captureVersion++;
         automaticPull = undefined;
         orders = {};
+        selected.clear();
         snapshotName = "";
         render();
       }

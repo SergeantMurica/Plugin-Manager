@@ -58,6 +58,23 @@
   margin: 8px 0;
 }
 
+.order-selection {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.order-selection input {
+  width: auto;
+  min-height: auto;
+}
+
+#order-list .notes-button {
+  white-space: normal;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
 .order-card details > .field {
   margin-top: 10px;
 }

@@ -6,6 +6,7 @@
     <title>TechBay Work Mate</title>
     <link rel="stylesheet" href="popup.css" />
     <script src="../../theme.js"></script>
+    <script src="lib/daily-update.js"></script>
   </head>
   <body>
     <main class="popup-shell">
@@ -60,7 +61,20 @@
           <input id="order-search" type="search" placeholder="Order, customer, status, Daily update..." />
         </label>
         <p id="list-summary"></p>
-        <button class="notes-button" id="fill-daily-updates" type="button">Fill Daily update drafts in this list</button>
+        <label class="field">
+          <span>Daily update date (uses Initials above)</span>
+          <input id="daily-update-date" type="date" />
+        </label>
+        <div class="list-actions">
+          <button class="notes-button" id="select-visible-orders" type="button">Select shown orders</button>
+          <button class="notes-button" id="clear-order-selection" type="button">Clear selection</button>
+          <span id="selected-order-count" role="status">0 selected</span>
+        </div>
+        <div class="list-actions">
+          <button class="notes-button" id="stamp-daily-updates" type="button">Update date / initials &amp; fill selected</button>
+          <button class="notes-button" id="fill-daily-updates" type="button">Fill selected Daily update drafts</button>
+        </div>
+        <p>Select orders for bulk actions. Updating date / initials keeps each note's text. Fills open background tabs; review and save each order in Work Mate.</p>
         <div id="order-rows"></div>
       </section>
 
