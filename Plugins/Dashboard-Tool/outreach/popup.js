@@ -147,6 +147,8 @@ let page = null; // last scrape from Dash
 let settings = { rep: "", callback: "" };
 let wtAuth = null;
 let wtItems = {};
+let warrantyStatusOrder = null;
+let warrantySavedStatus = "texted";
 let hasWarrantyTool = false;
 let scriptTab = "call";
 let textId = "";
@@ -503,6 +505,7 @@ function show(lead, explicit = false, automatic = false) {
   noteDirty = false;
   textId = "";
   emailId = "";
+  warrantyStatusOrder = null;
   if (unified) els.wtStatus.value = "texted";
   showError("");
   fillForm();
@@ -542,7 +545,7 @@ function applyTypeVisibility() {
 // ---------- rendering ----------
 function renderAll() {
   renderHeader();
-  renderClaim();
+  // renderClaim();
   renderSteps();
   renderWarranty();
   renderScriptTabs();
@@ -559,23 +562,7 @@ function renderHeader() {
   els.repLabel.textContent = repName() || "set your name ↓";
 }
 
-function renderClaim() {
-  const c = page?.claim;
-  const attemptedToday = Object.values(leads).filter((l) =>
-    isToday(lastTouch(l)),
-  ).length;
-  let text = "";
-  let state = "";
-  if (c?.work) {
-    text = `You have ${c.work} claimed lead${c.work === 1 ? "" : "s"} left to work on Dash. Log an attempt on each to claim 5 more. Attempts logged today: ${attemptedToday}.`;
-  } else if (c?.canClaim) {
-    text = "You're ready to claim 5 more leads on Dash.";
-    state = "ready";
-  }
-  els.claim.textContent = text;
-  els.claim.dataset.state = state;
-  els.claim.hidden = !text;
-}
+
 
 function renderSteps() {
   if (unified) {
@@ -673,7 +660,12 @@ function renderWarranty() {
   els.wtHint.textContent = msg;
   els.wtHint.dataset.tone = tone;
   els.wtHint.hidden = !msg;
-  if (e && !e.hidden) els.wtStatus.value = e.status;
+  const savedStatus = e && !e.hidden ? e.status : "texted";
+  // Refresh saved statuses without replacing an unsaved dropdown choice.
+  if (key !== warrantyStatusOrder || els.wtStatus.value === warrantySavedStatus)
+    els.wtStatus.value = savedStatus;
+  warrantyStatusOrder = key;
+  warrantySavedStatus = savedStatus;
   els.wtLog.disabled = !wtAuth || !key;
   els.wtLog.textContent = unified
     ? "Save warranty status"
@@ -1434,7 +1426,7 @@ chrome.storage.onChanged.addListener((c, area) => {
         }
       }
     }
-    renderClaim();
+    // renderClaim();
   }
   if (c[WT_AUTH_KEY] || c[WT_CACHE_KEY]) {
     wtAuth = c[WT_AUTH_KEY] ? c[WT_AUTH_KEY].newValue || null : wtAuth;
