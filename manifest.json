@@ -83,6 +83,15 @@
     },
     {
       "matches": [
+        "https://dash.metapcs.com/*"
+      ],
+      "js": [
+        "Plugins/techbay-planner-plugin/sku-discount.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
         "https://admin.shopify.com/*",
         "https://app.workmatepos.co/*"
       ],

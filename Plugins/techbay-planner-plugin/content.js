@@ -368,13 +368,30 @@
 
   let dailyEditorHost;
   let dailyEditorControl;
+  let positionDailyEditor = () => {};
+
+  function findDailyUpdateField() {
+    const control = findField(FIELD_LABELS.dailyUpdate);
+    if (!control || control.closest('table, [role="table"], [role="grid"]'))
+      return undefined;
+    const isTextField =
+      control instanceof HTMLTextAreaElement ||
+      (control instanceof HTMLInputElement && control.type === "text") ||
+      control.isContentEditable ||
+      control.getAttribute("role") === "textbox";
+    return isTextField && !control.disabled && !control.readOnly ? control : undefined;
+  }
 
   function installDailyEditor() {
-    const control = findField(FIELD_LABELS.dailyUpdate, true);
-    if (control === dailyEditorControl && dailyEditorHost?.isConnected) return;
+    const control = findDailyUpdateField();
+    if (control === dailyEditorControl && dailyEditorHost?.isConnected) {
+      positionDailyEditor();
+      return;
+    }
     dailyEditorHost?.remove();
     dailyEditorHost = undefined;
     dailyEditorControl = control;
+    positionDailyEditor = () => {};
     if (!control) return;
 
     const host = document.createElement("div");
@@ -382,93 +399,58 @@
     const shadow = host.attachShadow({ mode: "open" });
     shadow.innerHTML = `
       <style>
-        :host { display: block; margin: 6px 0; color-scheme: light; }
-        * { box-sizing: border-box; }
-        [hidden] { display: none !important; }
-        button, input, textarea { font: 13px system-ui, sans-serif; }
-        button { padding: 7px 10px; border: 1px solid #5c6065; border-radius: 5px;
-          background: #fff; color: #202124; cursor: pointer; }
-        button:hover { background: #eef0f2; }
-        button:focus-visible, input:focus-visible, textarea:focus-visible {
+        :host { position: fixed; display: block; z-index: 2147483647; color-scheme: light;
+          max-width: calc(100vw - 16px); }
+        :host([hidden]) { display: none !important; }
+        button { font: 12px system-ui, sans-serif; padding: 3px 10px;
+          border: 1px solid #2563eb; border-radius: 5px;
+          background: #dbeafe; color: #1e40af; cursor: pointer; }
+        button:hover { background: #bfdbfe; }
+        button:disabled { opacity: .6; cursor: wait; }
+        button:focus-visible {
           outline: 2px solid #1264b0; outline-offset: 2px; }
-        section { max-width: 600px; margin-top: 8px; padding: 12px; border: 1px solid #5c6065;
-          border-radius: 6px; background: #fff; color: #202124; font: 13px system-ui, sans-serif; }
-        label { display: grid; gap: 4px; margin-bottom: 8px; }
-        input, textarea { width: 100%; padding: 7px; border: 1px solid #5c6065;
-          border-radius: 4px; background: #fff; color: #202124; }
-        textarea { min-height: 75px; resize: vertical; }
-        p { margin: 8px 0 0; }
       </style>
-      <button type="button" id="toggle" aria-expanded="false" aria-controls="editor">Edit Daily update</button>
-      <section id="editor" hidden aria-label="Daily update editor">
-        <label>Date<input id="date" type="date"></label>
-        <label>Initials<input id="initials" maxlength="4" autocomplete="off"></label>
-        <label>Daily update<textarea id="note" rows="3"></textarea></label>
-        <button type="button" id="apply">Apply date / initials and note</button>
-        <button type="button" id="cancel">Cancel</button>
-        <p>Updates this field only. Review and save the order in Work Mate.</p>
-      </section>
-      <p id="status" role="status"></p>`;
-    control.insertAdjacentElement("afterend", host);
+      <button type="button" id="stamp">Update</button>`;
+    document.body.append(host);
     dailyEditorHost = host;
-    const toggle = shadow.querySelector("#toggle");
-    const editor = shadow.querySelector("#editor");
-    const date = shadow.querySelector("#date");
-    const initials = shadow.querySelector("#initials");
-    const note = shadow.querySelector("#note");
-    const status = shadow.querySelector("#status");
-    function close() {
-      editor.hidden = true;
-      toggle.setAttribute("aria-expanded", "false");
-      toggle.focus();
-    }
-    toggle.addEventListener("click", async (event) => {
+    const stamp = shadow.querySelector("#stamp");
+    positionDailyEditor = () => {
+      const rect = control.getBoundingClientRect();
+      host.hidden = !control.isConnected || !isVisible(control) ||
+        rect.bottom < 0 || rect.top > innerHeight || rect.right < 0 || rect.left > innerWidth;
+      if (host.hidden) return;
+      host.style.left = `${Math.max(8, Math.min(rect.right - host.offsetWidth, innerWidth - host.offsetWidth - 8))}px`;
+      host.style.top = `${Math.max(8, Math.min(rect.bottom + 4, innerHeight - host.offsetHeight - 8))}px`;
+    };
+    stamp.addEventListener("click", async (event) => {
       event.preventDefault();
-      if (!editor.hidden) {
-        close();
-        return;
-      }
-      toggle.disabled = true;
+      stamp.disabled = true;
       try {
         const stored = await chrome.storage.local.get("techbay-technician-initials");
-        date.value = globalThis.TechbayDailyUpdate.today();
-        initials.value = stored["techbay-technician-initials"] || "";
-        note.value = readValue(control);
-        status.textContent = "";
-        editor.hidden = false;
-        toggle.setAttribute("aria-expanded", "true");
-        (initials.value ? note : initials).focus();
-      } catch (error) {
-        status.textContent = `Could not open Daily update editor: ${error.message}`;
-      } finally {
-        toggle.disabled = false;
-      }
-    });
-    shadow.querySelector("#cancel").addEventListener("click", (event) => {
-      event.preventDefault();
-      close();
-    });
-    shadow.querySelector("#apply").addEventListener("click", async (event) => {
-      event.preventDefault();
-      const button = event.currentTarget;
-      button.disabled = true;
-      try {
-        const value = globalThis.TechbayDailyUpdate.stamp(note.value, date.value, initials.value);
-        if (!control.isConnected || findField(FIELD_LABELS.dailyUpdate, true) !== control)
-          throw new Error("The Daily update field changed. Reopen its editor.");
+        if (!stored["techbay-technician-initials"]) {
+          throw new Error("Set your initials in TechBay Planner first.");
+        }
+        const value = globalThis.TechbayDailyUpdate.stamp(
+          readValue(control),
+          globalThis.TechbayDailyUpdate.today(),
+          stored["techbay-technician-initials"],
+        );
+        if (!control.isConnected || findDailyUpdateField() !== control)
+          throw new Error("The Daily update field changed. Try again on the current field.");
         if (!await setControlValue(control, value))
           throw new Error("Work Mate did not accept the Daily update.");
-        await chrome.storage.local.set({ "techbay-technician-initials": initials.value.trim() });
-        close();
-        status.textContent = "Daily update filled. Review and save the order in Work Mate.";
       } catch (error) {
-        status.textContent = `Daily update: ${error.message}`;
+        alert(`Daily update: ${error.message}`);
       } finally {
-        button.disabled = false;
+        stamp.disabled = false;
+        positionDailyEditor();
       }
     });
+    positionDailyEditor();
   }
 
+  addEventListener("scroll", () => positionDailyEditor(), true);
+  addEventListener("resize", () => positionDailyEditor());
   let dailyEditorTimer;
   new MutationObserver((mutations) => {
     if (mutations.every((mutation) =>

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Work Mate Assistant",
   "version": "1.1.0",
-  "description": "Manage check-in, service plans, technician notes, callback notes in Shopify Admin.",
+  "description": "Manage work-order notes in Shopify Admin and show in-store dollar and percentage discounts on Dash SKU pages.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -11,12 +11,17 @@
     "sidePanel",
     "tabs"
   ],
-  "host_permissions": ["https://admin.shopify.com/*"],
+  "host_permissions": ["https://admin.shopify.com/*", "https://dash.metapcs.com/*"],
   "optional_host_permissions": ["https://app.workmatepos.co/*"],
   "action": {
     "default_title": "Work Mate Assistant"
   },
   "content_scripts": [
+    {
+      "matches": ["https://dash.metapcs.com/*"],
+      "js": ["sku-discount.js"],
+      "run_at": "document_idle"
+    },
     {
       "matches": ["https://admin.shopify.com/*", "https://app.workmatepos.co/*"],
       "js": ["lib/daily-update.js", "content.js"],
