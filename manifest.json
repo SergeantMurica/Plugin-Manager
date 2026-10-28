@@ -83,7 +83,8 @@
     },
     {
       "matches": [
-        "https://dash.metapcs.com/*"
+        "https://dash.metapcs.com/*",
+        "https://metapcs-platform.web.app/*"
       ],
       "js": [
         "Plugins/techbay-planner-plugin/sku-discount.js"

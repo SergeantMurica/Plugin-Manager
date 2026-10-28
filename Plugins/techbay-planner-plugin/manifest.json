@@ -11,14 +11,14 @@
     "sidePanel",
     "tabs"
   ],
-  "host_permissions": ["https://admin.shopify.com/*", "https://dash.metapcs.com/*"],
+  "host_permissions": ["https://admin.shopify.com/*", "https://dash.metapcs.com/*", "https://metapcs-platform.web.app/*"],
   "optional_host_permissions": ["https://app.workmatepos.co/*"],
   "action": {
     "default_title": "Work Mate Assistant"
   },
   "content_scripts": [
     {
-      "matches": ["https://dash.metapcs.com/*"],
+      "matches": ["https://dash.metapcs.com/*", "https://metapcs-platform.web.app/*"],
       "js": ["sku-discount.js"],
       "run_at": "document_idle"
     },
