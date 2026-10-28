@@ -9,8 +9,14 @@
     if (!/^MPC\d{4,}$/.test(normalized)) {
       throw new Error("Enter a valid MPC order number (for example MPC2636884).");
     }
+    const tabs = await chrome.tabs.query({
+      url: ["https://dash.metapcs.com/*", "https://metapcs-platform.web.app/*"],
+    });
+    const tab = tabs.sort((a, b) => Number(!!b.active) - Number(!!a.active) ||
+      (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];
+    const origin = tab ? new URL(tab.url).origin : "https://dash.metapcs.com";
     await chrome.tabs.create({
-      url: `https://dash.metapcs.com/orders/${normalized}`,
+      url: `${origin}/orders/${normalized}`,
       active: false,
     });
     return {};

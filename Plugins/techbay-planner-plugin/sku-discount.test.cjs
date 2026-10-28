@@ -6,7 +6,7 @@ const vm = require("node:vm");
 
 const source = readFileSync(join(__dirname, "sku-discount.js"), "utf8");
 
-function setup() {
+function setup(origin = "https://dash.metapcs.com") {
   class Element {
     constructor(text = "") {
       this.textContent = text;
@@ -39,7 +39,7 @@ function setup() {
   let refresh;
   const context = vm.createContext({
     Intl,
-    location: { pathname: "/tops/sku/part" },
+    location: new URL("/tops/sku/part", origin),
     document: {
       body: {},
       querySelectorAll: () => labels,
@@ -58,13 +58,15 @@ function setup() {
   return { context, grid, store, website, labels, refresh: () => refresh(), panel };
 }
 
-test("renders the pictured discount and rounded percentage with exact dollar savings", () => {
-  const { panel } = setup();
-  assert.equal(panel().children[0].textContent, "Discount for In Store");
-  assert.equal(panel().children[1].textContent, "$88.00 off (11.125158%)");
-  const percentage = 11.125158;
-  assert.equal(Math.round(79100 * (1 - percentage / 100)), 70300);
-});
+for (const origin of ["https://dash.metapcs.com", "https://metapcs-platform.web.app"]) {
+  test(`renders the pictured discount and rounded percentage with exact dollar savings on ${origin}`, () => {
+    const { panel } = setup(origin);
+    assert.equal(panel().children[0].textContent, "Discount for In Store");
+    assert.equal(panel().children[1].textContent, "$88.00 off (11.125158%)");
+    const percentage = 11.125158;
+    assert.equal(Math.round(79100 * (1 - percentage / 100)), 70300);
+  });
+}
 
 test("updates prices on part switches without duplicating the panel", () => {
   const fixture = setup();

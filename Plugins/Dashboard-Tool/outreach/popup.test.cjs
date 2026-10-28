@@ -10,6 +10,8 @@ const statuses = ["texted", "agreed", "declined", "paid", "none", "wrong_number_
 
 function setup(items = {}) {
   const writes = [];
+  let resets = 0;
+  let focused = false;
   const context = vm.createContext({
     hasWarrantyTool: true,
     unified: true,
@@ -23,6 +25,10 @@ function setup(items = {}) {
       wtStatus: { value: "texted" },
       wtHint: { dataset: {} },
       wtLog: {},
+      order: { focus: () => { focused = true; } },
+    },
+    document: {
+      getElementById: () => ({ reset: () => { resets++; } }),
     },
     orderKey: (value) => String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, ""),
     titleCase: (value) => value,
@@ -40,8 +46,124 @@ function setup(items = {}) {
     source.slice(source.indexOf("async function logWarranty()"), source.indexOf("// Customer accepted the warranty")),
     context,
   );
-  return { context, writes };
+  return { context, writes, resetCount: () => resets, orderFocused: () => focused };
 }
+
+test("a successful warranty save clears the shared form and focuses the order field", async () => {
+  const { context, writes, resetCount, orderFocused } = setup();
+  context.els.wtStatus.value = "paid";
+  assert.equal(await context.logWarranty(), true);
+  assert.equal(writes[0].status, "paid");
+  assert.equal(resetCount(), 1);
+  assert.equal(orderFocused(), true);
+});
+
+test("a failed warranty save keeps the form and displays the error", async () => {
+  const { context, resetCount, orderFocused } = setup();
+  const lead = context.current;
+  let error;
+  context.send = async () => ({ ok: false, error: "Save failed" });
+  context.showError = (message) => { error = message; };
+  assert.equal(await context.logWarranty(), false);
+  assert.equal(context.current, lead);
+  assert.equal(error, "Save failed");
+  assert.equal(resetCount(), 0);
+  assert.equal(orderFocused(), false);
+  assert.equal(context.els.wtLog.disabled, false);
+});
+
+test("cancelling another teammate's warranty update keeps the form", async () => {
+  const { context, writes, resetCount } = setup({
+    MPC100: { uid: "other", by: "Teammate" },
+  });
+  context.confirm = () => false;
+  assert.equal(await context.logWarranty(), false);
+  assert.equal(writes.length, 0);
+  assert.equal(resetCount(), 0);
+});
+
+test("a completed save does not clear a different customer opened while saving", async () => {
+  const { context, resetCount } = setup();
+  const next = { type: "warranty", order: "MPC200" };
+  context.send = async () => {
+    context.current = next;
+    return { ok: true };
+  };
+  await context.logWarranty();
+  assert.equal(context.current, next);
+  assert.equal(resetCount(), 0);
+});
+
+test("standalone warranty logging preserves its existing form behavior", async () => {
+  const { context, resetCount } = setup();
+  context.unified = false;
+  await context.logWarranty();
+  assert.equal(resetCount(), 0);
+});
+
+test("Clear fields resets customer and financing fields, drafts, pricing and the open lead without deleting logs", async () => {
+  const { context } = setup();
+  const listeners = {};
+  const stored = { wtDraft: { order: "MPC100" }, plCurrent: "WL-1", plLeads: { "WL-1": { order: "MPC100" } } };
+  const savedLog = stored.plLeads;
+  const form = {
+    addEventListener(type, callback) {
+      (listeners[type] ||= []).push(callback);
+    },
+    reset() {
+      for (const callback of listeners.reset) callback();
+      for (const id of ["phone", "email", "order", "name", "systemPrice", "lender", "amount"])
+        context.els[id].value = "";
+      context.els.watercooled.checked = false;
+    },
+  };
+  Object.assign(context.els, {
+    form,
+    clear: { addEventListener: (type, callback) => { listeners.clear = callback; } },
+    phone: { value: "5551234567" },
+    email: { value: "customer@example.com" },
+    order: { value: "MPC100", focus() {} },
+    name: { value: "Customer" },
+    systemPrice: { value: "3150", disabled: true },
+    watercooled: { checked: true },
+    lender: { value: "Lender" },
+    amount: { value: "1000" },
+  });
+  Object.assign(context, {
+    queueMicrotask,
+    DRAFT_KEY: "wtDraft",
+    CURRENT_KEY: "plCurrent",
+    chrome: { storage: { local: {
+      set: async (data) => Object.assign(stored, data),
+      remove: async (key) => { delete stored[key]; },
+    } } },
+    updateHint: () => {},
+    save: () => {},
+    show: (lead) => { context.current = lead; },
+    customer: { customerChanged: () => {
+      context.els.systemPrice.disabled = context.els.watercooled.checked;
+    } },
+    document: { getElementById: () => form },
+    showError: () => {},
+  });
+  vm.runInContext(
+    warrantySource.slice(warrantySource.indexOf("function saveDraft()"), warrantySource.indexOf("// ---------- duplicate check")) +
+    warrantySource.slice(warrantySource.indexOf('els.clear.addEventListener("click"'), warrantySource.indexOf('els.form.addEventListener("submit"')) +
+    source.slice(source.indexOf('  document.getElementById("form").addEventListener("reset"'), source.indexOf('els.watercooled.addEventListener("change"')).trimEnd().slice(0, -1),
+    context,
+  );
+  listeners.clear();
+  await new Promise((resolve) => setImmediate(resolve));
+  for (const id of ["phone", "email", "order", "name", "systemPrice", "lender", "amount"])
+    assert.equal(context.els[id].value, "");
+  assert.equal(context.els.watercooled.checked, false);
+  assert.equal(context.els.systemPrice.disabled, false);
+  assert.equal(context.els.clear.hidden, false);
+  assert.equal(context.current, null);
+  assert.equal(stored.wtDraft, undefined);
+  assert.equal(stored.plCurrent, undefined);
+  assert.equal(stored.plLeads, savedLog);
+});
 
 for (const status of statuses) {
   test(`saving uses the ${status} dropdown choice after form refreshes`, async () => {
@@ -90,6 +212,7 @@ test("every Team Log tab is read-only and cannot change the saved dropdown statu
   const { context, writes } = setup();
   const buttons = [];
   context.document = {
+    ...context.document,
     createElement: () => ({
       dataset: {},
       setAttribute() {},

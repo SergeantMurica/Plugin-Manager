@@ -703,6 +703,7 @@ async function logWarranty() {
     )
   )
     return false;
+  const savedLead = current;
   els.wtLog.disabled = true;
   const r = await send("upsert", {
     ...warrantyDetails(),
@@ -712,8 +713,13 @@ async function logWarranty() {
   });
   els.wtLog.disabled = false;
   showError(r.ok ? "" : r.error);
-  if (r.ok && unified) syncStatus("Warranty status saved in the Warranty team log.");
-  if (r.ok && unified) showError("");
+  if (r.ok && unified) {
+    syncStatus("Warranty status saved in the Warranty team log.");
+    if (current === savedLead) {
+      document.getElementById("form").reset();
+      els.order.focus();
+    }
+  }
   return r.ok;
 }
 
@@ -733,8 +739,9 @@ async function acceptWarranty() {
   // Paid is further along than Agreed; keep it.
   els.wtStatus.value =
     e && !e.hidden && e.status === "paid" ? "paid" : "agreed";
-  if (await logWarranty()) {
-    els.wtHint.textContent = `Logged ${key} as ${els.wtStatus.value === "paid" ? "Paid" : "Agreed"} in the Warranty Tool with the customer's details.`;
+  const statusLabel = els.wtStatus.value === "paid" ? "Paid" : "Agreed";
+  if (await logWarranty() && !unified) {
+    els.wtHint.textContent = `Logged ${key} as ${statusLabel} in the Warranty Tool with the customer's details.`;
     els.wtHint.dataset.tone = "ok";
     els.wtHint.hidden = false;
   }
@@ -1219,6 +1226,7 @@ if (unified) {
     if (current) save(true);
     queueMicrotask(() => {
       show(null);
+      customer.customerChanged();
       chrome.storage.local.remove(CURRENT_KEY).catch((error) => showError(error.message));
     });
   });

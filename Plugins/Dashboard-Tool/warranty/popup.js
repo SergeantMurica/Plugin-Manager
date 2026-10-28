@@ -311,7 +311,7 @@ function saveDraft() {
     draft.name ||
     draft.systemPrice ||
     draft.watercooled;
-  els.clear.hidden = !hasAny;
+  els.clear.hidden = !unified && !hasAny;
   if (hasAny) chrome.storage.local.set({ [DRAFT_KEY]: draft });
   else chrome.storage.local.remove(DRAFT_KEY);
 }
@@ -743,9 +743,15 @@ els.search.addEventListener("input", render);
 
 els.clear.addEventListener("click", () => {
   els.form.reset();
-  updateHint();
-  saveDraft();
   els.order.focus();
+});
+
+els.form.addEventListener("reset", () => {
+  queueMicrotask(() => {
+    showError(els.error, "");
+    updateHint();
+    saveDraft();
+  });
 });
 
 els.form.addEventListener("submit", async (ev) => {
@@ -1036,7 +1042,7 @@ export const ready = (async () => {
   els.systemPrice.value = draft.systemPrice || "";
   els.watercooled.checked = !!draft.watercooled;
   if (unified) els.watercooled.dispatchEvent(new Event("change"));
-  els.clear.hidden = !(
+  els.clear.hidden = !unified && !(
     draft.phone ||
     draft.email ||
     draft.order ||

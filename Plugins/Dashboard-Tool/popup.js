@@ -63,7 +63,10 @@ async function init() {
   const financingRow = outreach.querySelector("#lender").closest(".row");
   form.querySelector("#email").closest(".field").after(financingRow);
   form.querySelector('button[type="submit"]').hidden = true;
-  form.querySelector("#clear").hidden = true;
+  const clearFields = form.querySelector("#clear");
+  clearFields.textContent = "Clear fields";
+  clearFields.hidden = false;
+  outreachHeader.append(clearFields);
   const saveRow = outreach.querySelector("#wtBox");
   form.append(saveRow);
   const leadTop = outreach.querySelector(".lead-top");
