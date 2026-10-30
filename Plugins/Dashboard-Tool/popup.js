@@ -78,6 +78,7 @@ async function init() {
   priceField.append(...originalPriceField.children);
   originalPriceField.replaceWith(priceField);
   priceField.querySelector("#systemPrice").setAttribute("aria-label", "System price");
+  priceField.querySelector("#systemPrice").title = "Combined PC prices, excluding accessories. Multi-PC warranties are quoted per PC and added together.";
   const watercooled = form.querySelector(".toggle");
   watercooled.querySelector("input").setAttribute("aria-label", "Watercooled");
   priceField.querySelector("span").textContent = "Warranty pricing";
@@ -85,7 +86,7 @@ async function init() {
   const fixedPrice = document.createElement("p");
   fixedPrice.id = "fixedWarrantyPrice";
   fixedPrice.className = "hint";
-  fixedPrice.textContent = "Watercooled: 2 years $499 / 3 years $799";
+  fixedPrice.textContent = "Watercooled: 2 years $499 / 3 years $799 per PC";
   fixedPrice.hidden = true;
   priceField.append(fixedPrice);
 

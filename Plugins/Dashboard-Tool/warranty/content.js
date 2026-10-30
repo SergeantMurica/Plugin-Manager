@@ -4,6 +4,7 @@
 
   const CACHE_KEY = "wtContacts";
   const AUTH_KEY = "wtAuth";
+  const PAGE_KEY = "wtShopifyPage";
   const LABEL = {
     texted: "Texted",
     agreed: "Agreed",
@@ -20,6 +21,8 @@
   let myUid = "";
   let menu = null;
   const enrichSent = new Set();
+  const badgeTargets = new WeakMap();
+  let lastPage = "";
 
   const orderKey = (s) => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   // After the extension is reloaded, orphaned content scripts lose chrome.* access and throw.
@@ -44,7 +47,7 @@
 
   function orderTargets() {
     const found = [];
-    for (const a of document.querySelectorAll('a[href*="/orders/"]')) {
+    for (const a of document.querySelectorAll('[href*="/orders/"]')) {
       if (!/\/orders\/\d+/.test(a.getAttribute("href") || "")) continue;
       const text = a.textContent.trim();
       if (ORDER_TEXT.test(text)) found.push({ el: a, order: text });
@@ -52,16 +55,26 @@
     if (/\/orders\/\d+/.test(location.pathname)) {
       const h1 = [...document.querySelectorAll("h1")].find((h) => ORDER_TEXT.test(h.textContent.trim()));
       if (h1) found.push({ el: h1, order: h1.textContent.trim() });
+      else {
+        const page = document.querySelector("s-internal-page[heading]");
+        const order = page?.getAttribute("heading")?.trim() || "";
+        if (ORDER_TEXT.test(order)) found.push({ el: page, order });
+      }
     }
     return found;
   }
 
   function badgeFor(el) {
+    if (el.tagName === "S-INTERNAL-PAGE") return el.querySelector('[slot="accessory"] .wt-badge');
     const next = el.nextElementSibling;
     return next && next.classList.contains("wt-badge") ? next : null;
   }
 
   function paint() {
+    if (location.href !== lastPage) {
+      enrichSent.clear();
+      lastPage = location.href;
+    }
     for (const { el, order } of orderTargets()) {
       const id = orderKey(order);
       const c = items[id];
@@ -70,15 +83,24 @@
         b = document.createElement("span");
         b.className = "wt-badge";
         b.addEventListener("click", onBadgeClick);
-        el.insertAdjacentElement("afterend", b);
+        if (el.tagName === "S-INTERNAL-PAGE") {
+          let accessory = el.querySelector('[slot="accessory"]');
+          if (!accessory) {
+            accessory = document.createElement("div");
+            accessory.slot = "accessory";
+            el.prepend(accessory);
+          }
+          accessory.append(b);
+        } else el.insertAdjacentElement("afterend", b);
       }
+      badgeTargets.set(b, el);
       const state = c ? c.status : "new";
       const text = !signedIn ? "Warranty: sign in" : c ? `${LABEL[c.status] || c.status}: ${c.by}` : "Not contacted";
       if (b.dataset.state !== state) b.dataset.state = state;
       if (b.dataset.order !== order) b.dataset.order = order;
       if (b.textContent !== text) b.textContent = text;
       b.title = c ? `${c.by} · ${new Date(c.ts).toLocaleString()}${c.note ? "\n" + c.note : ""}` : "Click to log";
-      if (signedIn && el.tagName === "H1") enrichFromPage(order);
+      if (signedIn && !el.hasAttribute("href")) enrichFromPage(order);
     }
   }
 
@@ -96,56 +118,83 @@
   }
 
   const root = () => document.querySelector("main") || document.body;
-  const PHONE = /(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)/;
+  const PHONE = /(?<!\d)(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)/;
+  const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+  const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/;
+  // Line item: "SKU\nRTS/SHADEv3\n\nUnit price|Sale price\n$1,714.02 ... ×\n1". The first amount is
+  // what the customer paid per unit (a sale's original price comes after it).
+  const PC_LINE = /\bSKU\s*\n\s*((?:(?:RTS|CONFIG)\/\S+|CUSTOM\/PC))\s*\n(?:(?!\bSKU\b)[^$])*?\$\s?([\d,]+(?:\.\d+)?)(?:(?!\bSKU\b)[^\u00d7])*?\u00d7\s*(\d+)/gi;
 
-  // Smallest element whose text starts with a label (e.g. "Subtotal") and also contains an amount.
-  function amountAfter(label) {
-    const ownText = (n) =>
-      [...n.childNodes].filter((t) => t.nodeType === Node.TEXT_NODE).map((t) => t.data).join("").trim();
-    const leaves = [...root().querySelectorAll("*")].filter((n) => ownText(n) === label);
-    for (const leaf of leaves) {
-      let n = leaf;
-      for (let i = 0; i < 5 && n; i++, n = n.parentElement) {
-        const m = n.textContent.replace(/\s+/g, " ").match(new RegExp(`^\\s*${label}.*?\\$\\s?([\\d,]+(?:\\.\\d{2})?)`));
-        if (m) return m[1].replace(/,/g, "");
-      }
+  // Every PC on the order, one entry per unit: RTS/* is a ready-to-ship build, CONFIG/* a custom
+  // build (CONFIG/WC = watercooled); CUSTOM/PC is also a system.
+  function orderSystems() {
+    const text = root().innerText || "";
+    // The summary card renders after the line items, so wait for it to avoid reading half an order.
+    if (!/\nSubtotal\s*\n/.test(text)) return null;
+    const pcs = [];
+    for (const [, sku, price, qty] of text.matchAll(PC_LINE)) {
+      const amount = Number(price.replace(/,/g, ""));
+      for (let i = 0; i < Number(qty); i++) pcs.push({ sku: sku.toUpperCase(), amount });
     }
-    return "";
+    return pcs;
   }
 
-  const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/;
-
-  // Order detail page: best-effort read of customer name, phone, email and subtotal.
+  // Order detail page: customer name, phone, email and the PCs on the order.
   function scrapeOrderPage() {
-    const link = [...root().querySelectorAll('a[href*="/customers/"]')].find((a) =>
-      /\p{L}/u.test(a.textContent) && !/view|customer$/i.test(a.textContent.trim()),
+    // Shopify renders these as <s-internal-link>, not <a>, so match any element with the href.
+    const link = [...root().querySelectorAll('[href*="/customers/"]')].find((a) =>
+      /\p{L}/u.test(a.textContent) && !/^(?:view(?: customer)?|customer)$/i.test(a.textContent.trim()),
     );
     const customer = tidyName(link?.textContent);
-    let phone = (root().querySelector('a[href^="tel:"]')?.getAttribute("href") || "").replace(/^tel:/, "");
-    if (!phone && link) {
-      // Walk up from the customer link to the card holding "Contact information" / addresses.
-      let card = link;
-      for (let i = 0; i < 10 && card && !PHONE.test(card.innerText || ""); i++) card = card.parentElement;
-      phone = card?.innerText.match(PHONE)?.[0] || "";
-    }
-    const mailto = root().querySelector('a[href^="mailto:"]')?.getAttribute("href") || "";
+    // Climb from the customer link into the sidebar card that also holds the shipping address.
+    let card = link;
+    const cardText = () => (card?.innerText || "").replace(UUID, " ");
+    for (let i = 0; i < 8 && card && !PHONE.test(cardText()); i++) card = card.parentElement;
+    const tel = (root().querySelector('[href^="tel:"]')?.getAttribute("href") || "").replace(/^tel:/, "");
+    const phone = tel || (card ? cardText().match(PHONE)?.[0] : "") || "";
+    const mailto = root().querySelector('[href^="mailto:"]')?.getAttribute("href") || "";
     let addr = mailto.replace(/^mailto:/, "").split("?")[0];
     try { addr = decodeURIComponent(addr); } catch {}
-    const email = (addr.match(EMAIL) || [""])[0];
-    return { customer, phone: phone.trim(), email, systemPrice: amountAfter("Subtotal") || amountAfter("Total") };
+    let email = (addr.match(EMAIL) || [""])[0];
+    for (let n = link, i = 0; !email && n && i < 6; i++, n = n.parentElement) email = (n.innerText || "").match(EMAIL)?.[0] || "";
+    const data = { customer, phone: phone.trim(), email };
+    const pcs = orderSystems();
+    if (pcs?.length) {
+      data.systems = pcs.map((p) => p.amount).join(",");
+      data.systemPrice = String(Math.round(pcs.reduce((s, p) => s + p.amount, 0) * 100) / 100);
+      data.watercooled = pcs.some((p) => p.sku === "CONFIG/WC") ? "yes" : "";
+    }
+    return data;
   }
 
-  function enrichFromPage(order) {
+  async function enrichFromPage(order) {
     const id = orderKey(order);
     const c = items[id];
-    if (!c || c.uid !== myUid || (c.customer && c.phone && c.email && c.systemPrice)) return;
+    if (!c || c.uid !== myUid) return;
     const data = scrapeOrderPage();
-    const missing = ["customer", "phone", "email", "systemPrice"].filter((f) => !c[f] && data[f]);
-    if (!missing.length) return;
-    const sig = `${id}|${missing.map((f) => data[f]).join("|")}`;
+    if (!Object.values(data).some(Boolean)) return;
+    const url = location.href;
+    const sig = JSON.stringify([url, id, data]);
     if (enrichSent.has(sig)) return;
     enrichSent.add(sig);
-    send("enrich", { order, ...data });
+    try {
+      const result = await send("enrich", { order, ...data });
+      if (!result.ok) throw new Error(result.error || "Could not save Shopify order details.");
+      if (location.href !== url) return;
+      const details = { ...data };
+      for (const field of ["customer", "phone", "email"]) {
+        if (c[field]) details[field] = c[field];
+      }
+      if (c.systems) {
+        details.systems = c.systems;
+        details.systemPrice = c.systemPrice;
+        details.watercooled = c.watercooled || "";
+      }
+      await chrome.storage.local.set({ [PAGE_KEY]: { order, url, ...details } });
+    } catch (error) {
+      enrichSent.delete(sig);
+      console.error("[Dashboard Tool] Shopify order details were not saved:", error);
+    }
   }
 
   function closeMenu() {
@@ -156,14 +205,25 @@
   async function act(order, status, el, seen) {
     closeMenu();
     const payload = { order, status, expect: seen ? seen.updateTime || "" : null };
-    const fromList = el.tagName === "A";
-    if (status === "texted" && fromList) {
+    const fromList = el.hasAttribute("href");
+    // First contact (badge leaves "Not contacted"): capture the customer's details from their order.
+    const first = !seen;
+    if (first && fromList) {
       const customer = rowCustomer(el);
       if (customer) payload.customer = customer;
+    } else if (first) {
+      Object.assign(payload, scrapeOrderPage());
     }
     const r = await send("upsert", payload);
     if (!r.ok) return alert(r.error || "Could not save.");
-    if (status === "texted" && fromList) send("openOrder", { url: el.href });
+    // The list only shows the name, so open the order in a background tab where enrichFromPage reads the rest.
+    if (first && fromList) {
+      const opened = await send("openOrder", { url: new URL(el.getAttribute("href"), location.href).href });
+      if (!opened.ok) alert(opened.error || "Status saved, but the order could not be opened to read customer details.");
+    } else if (!fromList) {
+      items[orderKey(order)] = { ...seen, ...payload, uid: seen?.uid || myUid };
+      await enrichFromPage(order);
+    }
   }
 
   function onBadgeClick(ev) {
@@ -181,7 +241,7 @@
     closeMenu();
     const badge = ev.currentTarget;
     const order = badge.dataset.order;
-    const target = badge.previousElementSibling;
+    const target = badgeTargets.get(badge);
     const c = items[orderKey(order)];
     menu = document.createElement("div");
     menu.className = "wt-menu";
@@ -209,7 +269,7 @@
 
   let timer = 0;
   const schedule = () => { clearTimeout(timer); timer = setTimeout(paint, 150); };
-  new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
+  new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["heading"] });
 
   async function load() {
     if (!alive()) return;

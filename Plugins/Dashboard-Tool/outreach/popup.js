@@ -28,6 +28,8 @@ const REMOVED_KEY = "plLeadRemoved";
 const WT_AUTH_KEY = "wtAuth";
 const WT_CACHE_KEY = "wtContacts";
 const WT_DRAFT_KEY = "wtDraft";
+const SHOPIFY_PAGE_KEY = "wtShopifyPage";
+let shopifyPage = null;
 
 const STATUSES = [
   "new",
@@ -404,7 +406,7 @@ async function toDash(msg) {
 function ctx() {
   const l = current || {};
   const first = titleCase(l.customer).split(/\s+/)[0];
-  const w = warrantyPrices(l.systemPrice, l.watercooled);
+  const w = warrantyPrices(l.systemPrice, l.watercooled, l.systems);
   return {
     first: first || "there",
     rep: repName() || "{your name}",
@@ -682,6 +684,7 @@ function warrantyDetails() {
     customer: titleCase(l.customer),
     systemPrice: String(l.systemPrice || "").replace(/[^0-9.]/g, ""),
     watercooled: l.watercooled ? "yes" : "",
+    systems: l.systems || "",
   };
   return Object.fromEntries(Object.entries(d).filter(([, v]) => v));
 }
@@ -1186,11 +1189,37 @@ function ensureCustomerLead() {
   show(lead);
 }
 
+function showShopifyOrder(data) {
+  if (!unified || !data?.order || !/^https:\/\/admin\.shopify\.com\/store\/[^/]+\/orders\/\d+(?:[?#]|$)/.test(data.url || "")) return;
+  const sameOrder = current?.type === "warranty" && orderKey(current.order) === orderKey(data.order);
+  const previous = shopifyPage;
+  shopifyPage = data;
+  const lead = sameOrder ? { ...current } : {
+    ...blankLead(`WT-SHOPIFY-${orderKey(data.order)}`),
+    type: "warranty",
+    order: data.order,
+    url: data.url,
+  };
+  for (const field of ["customer", "phone", "email", "systemPrice", "watercooled", "systems"]) {
+    const value = field === "watercooled" ? data[field] === "yes" : data[field] || "";
+    const old = field === "watercooled" ? previous?.[field] === "yes" : previous?.[field] || "";
+    if (!sameOrder || !lead[field] || (previous?.order === data.order && lead[field] === old))
+      lead[field] = value;
+  }
+  if (sameOrder) {
+    current = lead;
+    fillForm();
+    renderAll();
+    save(true, false);
+  } else if (show(lead, false, true)) save(true, false);
+}
+
 for (const f of FIELDS) {
   els[f].addEventListener("input", () => {
     ensureCustomerLead();
     if (!current) return;
     current[f] = els[f].value;
+    if (f === "systemPrice") current.systems = "manual";
     save();
     renderWarranty();
     renderScript();
@@ -1235,6 +1264,7 @@ els.watercooled.addEventListener("change", () => {
   ensureCustomerLead();
   if (!current) return;
   current.watercooled = els.watercooled.checked;
+  current.systems = "manual";
   save();
   renderScript();
 });
@@ -1411,6 +1441,7 @@ els.clearOld.addEventListener("click", async () => {
 // New scrapes from Dash switch the panel to that lead and fill blank fields.
 chrome.storage.onChanged.addListener((c, area) => {
   if (area !== "local") return;
+  if (c[SHOPIFY_PAGE_KEY]) showShopifyOrder(c[SHOPIFY_PAGE_KEY].newValue);
   if (c[PAGE_KEY]) {
     page = c[PAGE_KEY].newValue || null;
     if (page?.leadId && page.leadId !== current?.id) {
@@ -1464,6 +1495,7 @@ export const ready = (async () => {
     WT_CACHE_KEY,
     REMOVED_KEY,
     CLOUD_KEY,
+    SHOPIFY_PAGE_KEY,
   ]);
   settings = { ...settings, ...d[SETTINGS_KEY] };
   els.rep.value = settings.rep;
@@ -1501,6 +1533,10 @@ export const ready = (async () => {
   else if (id && leads[id]) show({ ...leads[id] });
   else show(null);
   if (unified && !current) ensureCustomerLead();
+  if (unified && d[SHOPIFY_PAGE_KEY]) {
+    const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true, url: "https://admin.shopify.com/*" });
+    if (tabs.some((tab) => tab.url === d[SHOPIFY_PAGE_KEY].url)) showShopifyOrder(d[SHOPIFY_PAGE_KEY]);
+  }
   if (current) save(true, false);
   if (unified) {
     // Remove pre-existing dead entries, including their cloud metadata, without retaining history.

@@ -104,15 +104,32 @@ const priceText = (years, total) => {
   return p === null ? MANAGER_NOTE : `$${p}`;
 };
 
-function scriptContext(customer, systemPrice, watercooled = false) {
+// Per-PC prices read from the Shopify order ("1149,1299"); "manual" or blank means use systemPrice.
+const pcPrices = (systems) =>
+  String(systems || "")
+    .split(",")
+    .map(Number)
+    .filter((n) => Number.isFinite(n) && n > 0);
+
+function scriptContext(customer, systemPrice, watercooled = false, systems = "") {
   const total = parseFloat(String(systemPrice).replace(/[^0-9.]/g, ""));
   const known = Number.isFinite(total);
+  const pcs = pcPrices(systems);
+  // Each PC gets its own warranty, so a multi-PC order is quoted as the sum of per-PC prices.
+  const multiTier = (years) => {
+    const each = pcs.map((p) => (watercooled ? WATERCOOLED_PRICES[years] : priceFor(years, p)));
+    if (each.includes(null)) return MANAGER_NOTE;
+    const who = pcs.length === 2 ? "both PCs" : `all ${pcs.length} PCs`;
+    return `$${each.reduce((s, p) => s + p, 0).toLocaleString()} for ${who}`;
+  };
   const tier = (years) =>
-    watercooled
-      ? `$${WATERCOOLED_PRICES[years]}`
-      : known
-        ? priceText(years, total)
-        : `{${years} year}`;
+    pcs.length > 1
+      ? multiTier(years)
+      : watercooled
+        ? `$${WATERCOOLED_PRICES[years]}`
+        : known
+          ? priceText(years, total)
+          : `{${years} year}`;
   const first = String(customer || "")
     .trim()
     .split(/\s+/)[0];
@@ -121,7 +138,12 @@ function scriptContext(customer, systemPrice, watercooled = false) {
     rep: capitalizeName(auth?.name) || "{Employee Name}",
     two: tier(2),
     three: tier(3),
-    build: known ? `a $${Math.round(total).toLocaleString()} build` : "your build",
+    build:
+      pcs.length > 1
+        ? `a $${Math.round(pcs.reduce((s, p) => s + p, 0)).toLocaleString()} order`
+        : known
+          ? `a $${Math.round(total).toLocaleString()} build`
+          : "your build",
   };
 }
 
@@ -130,7 +152,7 @@ async function copyScript(e, button, stage = stageFor(e.status), save = true) {
   const variant =
     variantById(e.variant) ||
     (e.status === "texted" ? randomVariant() : fallbackVariant(e.id));
-  const ctx = scriptContext(e.customer, e.systemPrice, e.watercooled === "yes");
+  const ctx = scriptContext(e.customer, e.systemPrice, e.watercooled === "yes", e.systems);
   await navigator.clipboard.writeText(variant[stage](ctx));
   const label = button.textContent;
   button.textContent = "✓";
@@ -486,7 +508,12 @@ function render() {
     }
     if (e.systemPrice) {
       const price = document.createElement("span");
+      const pcs = pcPrices(e.systems);
       price.textContent = `$${Number(e.systemPrice).toLocaleString()}`;
+      if (pcs.length > 1) {
+        price.textContent += ` · ${pcs.length} PCs`;
+        price.title = pcs.map((p) => `$${p.toLocaleString()}`).join(" + ");
+      }
       meta.append(price);
     }
     if (e.watercooled === "yes") {
@@ -622,13 +649,18 @@ function render() {
       cancel.addEventListener("click", closeEdit);
       const submit = async () => {
         save.disabled = true;
+        const wc = wcIn.checked ? "yes" : "";
+        // A hand-typed price/flag replaces the per-PC breakdown and stops the order page re-filling it.
+        const changed =
+          priceIn.value !== (e.systemPrice || "") || wc !== (e.watercooled === "yes" ? "yes" : "");
         const r = await send("updateDetails", {
           id: e.id,
           customer: capitalizeName(nameIn.value.trim()),
           phone: phoneIn.value.trim() ? prettyPhone(phoneIn.value) : "",
           email: emailIn.value.trim(),
           systemPrice: priceIn.value,
-          watercooled: wcIn.checked ? "yes" : "",
+          watercooled: wc,
+          ...(changed ? { systems: "manual" } : {}),
         });
         if (!r.ok) {
           save.disabled = false;

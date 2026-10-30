@@ -35,7 +35,16 @@ const PRICES = {
   ],
 };
 const WATERCOOLED = { 2: 499, 3: 799 };
-export function warrantyPrices(systemPrice, watercooled) {
+export function warrantyPrices(systemPrice, watercooled, systems = "") {
+  const pcs = String(systems).split(",").map(Number).filter((n) => Number.isFinite(n) && n > 0);
+  if (pcs.length > 1) {
+    const quotes = pcs.map((price) => warrantyPrices(price, watercooled));
+    if (quotes.some((quote) => !quote.known))
+      return { two: "{manager to calculate}", three: "{manager to calculate}", known: false };
+    const total = (key) => quotes.reduce((sum, quote) => sum + Number(quote[key].slice(1)), 0);
+    const who = pcs.length === 2 ? "both PCs" : `all ${pcs.length} PCs`;
+    return { two: `$${total("two")} for ${who}`, three: `$${total("three")} for ${who}`, known: true };
+  }
   if (watercooled) return { two: `$${WATERCOOLED[2]}`, three: `$${WATERCOOLED[3]}`, known: true };
   const total = parseFloat(String(systemPrice || "").replace(/[^0-9.]/g, ""));
   if (!Number.isFinite(total)) return { two: "{2-year price}", three: "{3-year price}", known: false };

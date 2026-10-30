@@ -5,7 +5,7 @@ const CFG = self.WARRANTY_CONFIG;
 const AUTH_KEY = "wtAuth";
 const CACHE_KEY = "wtContacts";
 const PRIVATE_KEY = "wtPrivate"; // customer name / phone / email / price: stored only on this device
-const PRIVATE_FIELDS = ["phone", "email", "customer", "systemPrice", "watercooled"];
+const PRIVATE_FIELDS = ["phone", "email", "customer", "systemPrice", "watercooled", "systems"];
 const STATUSES = [
   "texted",
   "agreed",
@@ -283,8 +283,16 @@ async function enrich({ order, ...data }) {
   const cur = priv[id] || {};
   const add = {};
   for (const f of PRIVATE_FIELDS) {
+    if (cur.systems && ["systemPrice", "watercooled", "systems"].includes(f)) continue;
     const v = String(data[f] || "").trim();
     if (v && !cur[f]) add[f] = v;
+  }
+  // systems (per-PC prices read from the order's RTS/ and CONFIG/ lines) is the authoritative
+  // source, so the first time it arrives it also replaces the price and watercooled flag.
+  // A manual edit sets systems to "manual", which keeps this from overwriting it later.
+  if (add.systems) {
+    add.systemPrice = String(data.systemPrice || "").trim();
+    add.watercooled = data.watercooled === "yes" ? "yes" : "";
   }
   const n = Object.keys(add).length;
   if (!n) return 0;
@@ -323,6 +331,7 @@ async function mergePrivate(list) {
     customer: "",
     systemPrice: "",
     watercooled: "",
+    systems: "",
     ...priv[c.id],
   }));
 }
@@ -512,6 +521,7 @@ async function upsert(input) {
     customer: "",
     systemPrice: "",
     watercooled: "",
+    systems: "",
     ...priv,
     ...contact,
   };
@@ -528,6 +538,7 @@ async function updateDetails({
   customer,
   systemPrice,
   watercooled,
+  systems,
 }) {
   const cur = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY]?.items?.[
     id
@@ -539,6 +550,7 @@ async function updateDetails({
     customer,
     systemPrice,
     watercooled: watercooled || "",
+    systems,
   });
   await patchCache((items) => {
     items[id] = { ...items[id], ...priv };
