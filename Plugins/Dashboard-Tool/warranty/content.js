@@ -5,6 +5,7 @@
   const CACHE_KEY = "wtContacts";
   const AUTH_KEY = "wtAuth";
   const PAGE_KEY = "wtShopifyPage";
+  const PULL_KEY = "wtShopifyPull";
   const LABEL = {
     texted: "Texted",
     agreed: "Agreed",
@@ -22,6 +23,7 @@
   let menu = null;
   const enrichSent = new Set();
   const badgeTargets = new WeakMap();
+  const pending = new Set();
   let lastPage = "";
 
   const orderKey = (s) => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -95,11 +97,14 @@
       }
       badgeTargets.set(b, el);
       const state = c ? c.status : "new";
-      const text = !signedIn ? "Warranty: sign in" : c ? `${LABEL[c.status] || c.status}: ${c.by}` : "Not contacted";
+      const text = pending.has(id) ? "Saving..." : !signedIn ? "Warranty: sign in" : c ? `${LABEL[c.status] || c.status}: ${c.by}` : "Not contacted";
       if (b.dataset.state !== state) b.dataset.state = state;
       if (b.dataset.order !== order) b.dataset.order = order;
       if (b.textContent !== text) b.textContent = text;
-      b.title = c ? `${c.by} · ${new Date(c.ts).toLocaleString()}${c.note ? "\n" + c.note : ""}` : "Click to log";
+      b.title = pending.has(id)
+        ? "Saving this order. Other orders remain available."
+        : c ? `${c.by} · ${new Date(c.ts).toLocaleString()}${c.note ? "\n" + c.note : ""}`
+          : "Click to log. You can log other orders while this one loads.";
       if (signedIn && !el.hasAttribute("href")) enrichFromPage(order);
     }
   }
@@ -190,7 +195,11 @@
         details.systemPrice = c.systemPrice;
         details.watercooled = c.watercooled || "";
       }
-      await chrome.storage.local.set({ [PAGE_KEY]: { order, url, ...details } });
+      const selected = (await chrome.storage.local.get(PULL_KEY))[PULL_KEY];
+      // Background pulls finish out of order. Save every record, but don't replace the
+      // latest selected customer's form with a slower, earlier pull.
+      if (document.visibilityState === "visible" || !selected || orderKey(selected.order) === id)
+        await chrome.storage.local.set({ [PAGE_KEY]: { order, url, ...details } });
     } catch (error) {
       enrichSent.delete(sig);
       console.error("[Dashboard Tool] Shopify order details were not saved:", error);
@@ -204,25 +213,39 @@
 
   async function act(order, status, el, seen) {
     closeMenu();
-    const payload = { order, status, expect: seen ? seen.updateTime || "" : null };
-    const fromList = el.hasAttribute("href");
-    // First contact (badge leaves "Not contacted"): capture the customer's details from their order.
-    const first = !seen;
-    if (first && fromList) {
-      const customer = rowCustomer(el);
-      if (customer) payload.customer = customer;
-    } else if (first) {
-      Object.assign(payload, scrapeOrderPage());
-    }
-    const r = await send("upsert", payload);
-    if (!r.ok) return alert(r.error || "Could not save.");
-    // The list only shows the name, so open the order in a background tab where enrichFromPage reads the rest.
-    if (first && fromList) {
-      const opened = await send("openOrder", { url: new URL(el.getAttribute("href"), location.href).href });
-      if (!opened.ok) alert(opened.error || "Status saved, but the order could not be opened to read customer details.");
-    } else if (!fromList) {
-      items[orderKey(order)] = { ...seen, ...payload, uid: seen?.uid || myUid };
-      await enrichFromPage(order);
+    const id = orderKey(order);
+    if (pending.has(id)) return;
+    pending.add(id);
+    paint();
+    try {
+      const payload = { order, status, expect: seen ? seen.updateTime || "" : null };
+      const fromList = el.hasAttribute("href");
+      const first = !seen;
+      if (first && fromList) {
+        const customer = rowCustomer(el);
+        if (customer) payload.customer = customer;
+      } else if (first) {
+        Object.assign(payload, scrapeOrderPage());
+      }
+      let opening;
+      if (first && fromList) {
+        await chrome.storage.local.set({ [PULL_KEY]: { order } });
+        opening = send("openOrder", { url: new URL(el.getAttribute("href"), location.href).href });
+      }
+      // Load Shopify while Firestore saves the status, rather than paying both delays in sequence.
+      const [r, opened] = await Promise.all([send("upsert", payload), opening]);
+      if (!r.ok) return alert(r.error || "Could not save.");
+      if (opened && !opened.ok)
+        alert(opened.error || "Status saved, but the order could not be opened to read customer details.");
+      if (!fromList) {
+        items[id] = { ...seen, ...payload, uid: seen?.uid || myUid };
+        await enrichFromPage(order);
+      }
+    } catch (error) {
+      alert(`Could not pull ${order}: ${error.message}`);
+    } finally {
+      pending.delete(id);
+      paint();
     }
   }
 
@@ -268,8 +291,40 @@
   document.addEventListener("click", (e) => { if (menu && !menu.contains(e.target)) closeMenu(); }, true);
 
   let timer = 0;
-  const schedule = () => { clearTimeout(timer); timer = setTimeout(paint, 150); };
+  let lastPaint = 0;
+  let wake = null;
+  let woken = false;
+  const run = () => {
+    clearTimeout(timer);
+    timer = 0;
+    woken = false;
+    lastPaint = Date.now();
+    paint();
+  };
+  // Throttle rather than debounce: ongoing Shopify mutations must not postpone a ready order forever.
+  // Pulled orders load in background tabs, where Chrome clamps timers to >= 1 s; a message task
+  // isn't clamped, so there it paints at most every 50 ms and the timer only catches the last burst.
+  const schedule = () => {
+    if (woken) return;
+    if (document.visibilityState === "hidden" && Date.now() - lastPaint >= 50) {
+      if (!wake) {
+        const channel = new MessageChannel();
+        channel.port1.onmessage = run;
+        wake = channel.port2;
+      }
+      woken = true;
+      wake.postMessage(0);
+      return;
+    }
+    if (!timer) timer = setTimeout(run, 50);
+  };
   new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["heading"] });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      enrichSent.clear();
+      paint();
+    }
+  });
 
   async function load() {
     if (!alive()) return;

@@ -264,40 +264,55 @@ async function getPrivate() {
   return (await chrome.storage.local.get(PRIVATE_KEY))[PRIVATE_KEY] || {};
 }
 
+// Chrome storage has no atomic read/modify/write. Serialize only local writes;
+// independent order requests and Firestore saves still run concurrently.
+let localWrites = Promise.resolve();
+function localWrite(update) {
+  const result = localWrites.then(update);
+  localWrites = result.then(() => undefined, () => undefined);
+  return result;
+}
+
 // Only fields present in data are overwritten, so callers that don't know them keep the saved values.
 async function savePrivate(id, data) {
-  const priv = await getPrivate();
-  const next = { ...priv[id] };
-  for (const f of PRIVATE_FIELDS)
-    if (data[f] !== undefined) next[f] = String(data[f] || "").trim();
-  priv[id] = next;
-  await chrome.storage.local.set({ [PRIVATE_KEY]: priv });
-  return next;
+  return localWrite(async () => {
+    const priv = await getPrivate();
+    const next = { ...priv[id] };
+    for (const f of PRIVATE_FIELDS)
+      if (data[f] !== undefined) next[f] = String(data[f] || "").trim();
+    priv[id] = next;
+    await chrome.storage.local.set({ [PRIVATE_KEY]: priv });
+    return next;
+  });
 }
 
 // Fills blank customer details (scraped from the Shopify order page) without touching typed-in values.
 async function enrich({ order, ...data }) {
   const id = orderKey(order);
   if (!id) return 0;
-  const priv = await getPrivate();
-  const cur = priv[id] || {};
-  const add = {};
-  for (const f of PRIVATE_FIELDS) {
-    if (cur.systems && ["systemPrice", "watercooled", "systems"].includes(f)) continue;
-    const v = String(data[f] || "").trim();
-    if (v && !cur[f]) add[f] = v;
-  }
-  // systems (per-PC prices read from the order's RTS/ and CONFIG/ lines) is the authoritative
-  // source, so the first time it arrives it also replaces the price and watercooled flag.
-  // A manual edit sets systems to "manual", which keeps this from overwriting it later.
-  if (add.systems) {
-    add.systemPrice = String(data.systemPrice || "").trim();
-    add.watercooled = data.watercooled === "yes" ? "yes" : "";
-  }
+  const add = await localWrite(async () => {
+    const priv = await getPrivate();
+    const cur = priv[id] || {};
+    const next = {};
+    for (const f of PRIVATE_FIELDS) {
+      if (cur.systems && ["systemPrice", "watercooled", "systems"].includes(f)) continue;
+      const v = String(data[f] || "").trim();
+      if (v && !cur[f]) next[f] = v;
+    }
+    // Per-PC prices replace the old subtotal only on the first successful scrape.
+    // "manual" keeps subsequent scrapes from overwriting a hand-edited price/flag.
+    if (next.systems) {
+      next.systemPrice = String(data.systemPrice || "").trim();
+      next.watercooled = data.watercooled === "yes" ? "yes" : "";
+    }
+    if (Object.keys(next).length) {
+      priv[id] = { ...cur, ...next };
+      await chrome.storage.local.set({ [PRIVATE_KEY]: priv });
+    }
+    return next;
+  });
   const n = Object.keys(add).length;
   if (!n) return 0;
-  priv[id] = { ...cur, ...add };
-  await chrome.storage.local.set({ [PRIVATE_KEY]: priv });
   await patchCache((items) => {
     if (items[id]) Object.assign(items[id], add);
   });
@@ -338,24 +353,24 @@ async function mergePrivate(list) {
 
 // Merges phone/email/customer/price rows (e.g. from a CSV export) into local storage only.
 async function importPrivate({ rows }) {
-  const priv = await getPrivate();
-  let count = 0;
-  for (const r of rows || []) {
-    const id = orderKey(r.order);
-    if (!id) continue;
-    const next = { ...priv[id] };
-    for (const f of PRIVATE_FIELDS) {
-      const v = String(r[f] || "").trim();
-      if (v) next[f] = v;
+  const count = await localWrite(async () => {
+    const priv = await getPrivate();
+    let count = 0;
+    for (const r of rows || []) {
+      const id = orderKey(r.order);
+      if (!id) continue;
+      const next = { ...priv[id] };
+      for (const f of PRIVATE_FIELDS) {
+        const v = String(r[f] || "").trim();
+        if (v) next[f] = v;
+      }
+      priv[id] = next;
+      count++;
     }
-    priv[id] = next;
-    count++;
-  }
-  await chrome.storage.local.set({ [PRIVATE_KEY]: priv });
-  await patchCache((items) => {
-    for (const id of Object.keys(items))
-      if (priv[id]) Object.assign(items[id], priv[id]);
+    await chrome.storage.local.set({ [PRIVATE_KEY]: priv });
+    return count;
   });
+  await patchCache();
   return count;
 }
 
@@ -407,31 +422,32 @@ async function doRefresh(force) {
   if (!force && cached && Date.now() - syncedAt < MIN_REFRESH_MS) return;
   const startedAt = Date.now();
   if (!cached || !syncedAt || cached.v !== CACHE_VERSION) {
-    await chrome.storage.local.set({
-      [CACHE_KEY]: {
-        items: await fullFetch(),
-        fetchedAt: startedAt,
-        v: CACHE_VERSION,
-      },
-      [SYNC_KEY]: startedAt,
-    });
+    await saveRefresh(Object.values(await fullFetch()), startedAt, true);
     return;
   }
   const changed = await changedSince(syncedAt - SYNC_OVERLAP_MS);
-  const dirty = changed.filter(
-    (c) => JSON.stringify(cached.items[c.id]) !== JSON.stringify(c),
-  );
-  if (dirty.length) {
-    for (const c of dirty) cached.items[c.id] = c;
-    await chrome.storage.local.set({
-      [CACHE_KEY]: {
-        items: cached.items,
-        fetchedAt: startedAt,
-        v: CACHE_VERSION,
-      },
-    });
-  }
-  await chrome.storage.local.set({ [SYNC_KEY]: startedAt });
+  await saveRefresh(changed, startedAt, false);
+}
+
+function saveRefresh(records, startedAt, full) {
+  return localWrite(async () => {
+    const stored = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY];
+    const current = stored?.items || {};
+    const items = full
+      ? Object.fromEntries(Object.entries(current).filter(([, c]) => c.updatedAt >= startedAt))
+      : { ...current };
+    for (const record of records) {
+      const saved = current[record.id];
+      items[record.id] = saved?.updateTime > record.updateTime ? saved : record;
+    }
+    const priv = await getPrivate();
+    for (const id of Object.keys(items))
+      if (priv[id]) Object.assign(items[id], priv[id]);
+    const update = { [SYNC_KEY]: startedAt };
+    if (full || JSON.stringify(items) !== JSON.stringify(current))
+      update[CACHE_KEY] = { items, fetchedAt: startedAt, v: CACHE_VERSION };
+    await chrome.storage.local.set(update);
+  });
 }
 
 function refreshContacts(force = false) {
@@ -441,12 +457,15 @@ function refreshContacts(force = false) {
   return inflight;
 }
 
-async function patchCache(fn) {
-  const cur = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY] || {
-    items: {},
-  };
-  fn(cur.items);
-  await chrome.storage.local.set({ [CACHE_KEY]: cur });
+async function patchCache(fn = () => {}) {
+  return localWrite(async () => {
+    const cur = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY] || { items: {} };
+    fn(cur.items);
+    const priv = await getPrivate();
+    for (const id of Object.keys(cur.items))
+      if (priv[id]) Object.assign(cur.items[id], priv[id]);
+    await chrome.storage.local.set({ [CACHE_KEY]: cur });
+  });
 }
 
 async function upsert(input) {
