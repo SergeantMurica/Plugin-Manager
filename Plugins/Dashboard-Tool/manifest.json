@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Dashboard Tool",
   "version": "2.0.0",
-  "description": "Standalone combined Warranty tracker, Shopify badges and Dash outreach workspace.",
+  "description": "Warranty tracker, Shopify badges, Dash outreach and My runs work-order notes.",
   "permissions": ["storage", "sidePanel", "scripting", "clipboardWrite", "alarms", "idle"],
   "host_permissions": [
     "https://app.ringcentral.com/*",
@@ -23,7 +23,8 @@
     },
     {
       "matches": ["https://dash.metapcs.com/*", "https://metapcs-platform.web.app/*"],
-      "js": ["outreach/content.js"],
+      "js": ["outreach/content.js", "my-runs/notes-model.js", "my-runs/content.js"],
+      "css": ["my-runs/notes.css"],
       "run_at": "document_idle"
     }
   ],

@@ -62,7 +62,12 @@
         "https://metapcs-platform.web.app/*"
       ],
       "js": [
-        "Plugins/Dashboard-Tool/outreach/content.js"
+        "Plugins/Dashboard-Tool/outreach/content.js",
+        "Plugins/Dashboard-Tool/my-runs/notes-model.js",
+        "Plugins/Dashboard-Tool/my-runs/content.js"
+      ],
+      "css": [
+        "Plugins/Dashboard-Tool/my-runs/notes.css"
       ],
       "run_at": "document_idle"
     },
