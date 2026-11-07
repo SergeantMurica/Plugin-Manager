@@ -166,7 +166,7 @@
         <img class="brand-logo" src="outreach/icons/icon128.png" alt="Pound List Tool logo" />
       </div>
       <h1>Pound List Tool</h1>
-      <span class="count"><span id="count">0 worked today</span> · <span id="repLabel"></span></span>
+      <span id="repLabel"></span>
     </header>
 
     <p class="claim" id="claim" role="status" hidden></p>
@@ -232,48 +232,14 @@
       <p class="error" id="error" role="alert" hidden></p>
     </form>
 
-    <section class="card ctt">
-      <div class="card-head">
-        <h2>Call · Text · Ticket</h2>
-        <label class="mini" title="Also mark this step on the Dash lead">
-          <input id="tickDash" type="checkbox" checked /> Tick on Dash
-        </label>
-      </div>
-      <div class="steps" id="steps"></div>
-      <p class="tip" id="cttTip"></p>
-    </section>
-
     <section class="card">
-      <div class="tabs-main" id="scriptTabs" role="tablist" aria-label="Scripts"></div>
+      <div class="tabs-main" id="scriptTabs" role="tablist" aria-label="Text and email templates"></div>
       <div class="script-tools" id="scriptTools"></div>
       <div class="script" id="script"></div>
     </section>
 
-    <section class="card">
-      <div class="card-head">
-        <h2>Activity note</h2>
-        <select id="outcome" class="chip" aria-label="Outcome"></select>
-      </div>
-      <textarea id="note" rows="3" spellcheck="true"></textarea>
-      <div class="actions">
-        <button type="button" id="noteReset" class="ghost" title="Rebuild the note from the CTT steps">Rebuild note</button>
-        <button type="button" id="noteCopy" class="ghost">Copy</button>
-        <button type="button" id="noteFill" class="primary">Add to Dash note</button>
-      </div>
-    </section>
-
-    <section class="log">
-      <div class="tabs-main" id="logTabs" role="tablist" aria-label="Filter">
-        <button type="button" class="tab" data-filter="today" role="tab"><span class="tab-name">Today</span> <b id="nToday">0</b></button>
-        <button type="button" class="tab" data-filter="all" role="tab"><span class="tab-name">All</span> <b id="nAll">0</b></button>
-      </div>
-      <input id="search" type="search" placeholder="Search customer, phone, order or WL #" />
-      <div class="scroll" id="scroll">
-        <div id="list"></div>
-        <p class="empty" id="empty">No leads worked yet.</p>
-      </div>
       <details class="settings">
-        <summary>Settings</summary>
+        <summary>Message settings</summary>
         <div class="row">
           <label class="field">
             <span>Your name <em>used in scripts</em></span>
@@ -285,13 +251,6 @@
           </label>
         </div>
       </details>
-      <footer class="foot">
-        <div class="foot-actions">
-          <button type="button" id="export" class="link">Export CSV</button>
-          <button type="button" id="clearOld" class="link danger">Clear log</button>
-        </div>
-      </footer>
-    </section>
 
     
   

@@ -21,6 +21,7 @@ async function init() {
 
   const outreach = document.createElement("section");
   outreach.id = "dashboardOutreach";
+  outreach.dataset.for = "financing abandoned helpdesk other";
   outreach.setAttribute("aria-label", "Dash outreach");
   outreach.append(...pound.body.children);
   // Reuse the Warranty form's inputs and controller, not a second customer draft.
@@ -42,20 +43,6 @@ async function init() {
   outreach.querySelector("#wtLog").textContent = "Save warranty status";
   openTracker.hidden = true;
   outreach.querySelector("#readPage").hidden = true;
-  const leadLog = outreach.querySelector(".log");
-  leadLog.classList.add("lead-history");
-  leadLog.prepend(heading("Lead log"));
-  const sync = document.createElement("p");
-  sync.id = "leadSync";
-  sync.className = "hint";
-  sync.setAttribute("role", "status");
-  leadLog.prepend(sync);
-  const retry = document.createElement("button");
-  retry.id = "leadRetry";
-  retry.type = "button";
-  retry.className = "link";
-  retry.textContent = "Retry Lead sync";
-  leadLog.append(retry);
 
   const poundIds = [...outreach.querySelectorAll("[id]")];
   const poundLabels = [...outreach.querySelectorAll("label[for]")];
@@ -90,30 +77,9 @@ async function init() {
   fixedPrice.hidden = true;
   priceField.append(fixedPrice);
 
-  const ctt = outreach.querySelector(".ctt");
   const scriptCard = outreach.querySelector("#script").closest(".card");
-  const noteCard = outreach.querySelector("#note").closest(".card");
-  const disclosure = document.createElement("details");
-  disclosure.className = "outreach-dropdown";
-  const summary = document.createElement("summary");
-  summary.textContent = "Call / Ticket / Text";
-  disclosure.append(summary, ...ctt.children);
-  ctt.replaceWith(disclosure);
-  disclosure.querySelector("h2").remove();
-  const stepSelect = document.createElement("select");
-  stepSelect.id = "stepSelect";
-  stepSelect.setAttribute("aria-label", "Log outreach step");
-  disclosure.querySelector("#steps").before(stepSelect);
-  disclosure.querySelector("#steps").hidden = true;
-  const outreachBody = document.createElement("div");
-  outreachBody.className = "outreach-body";
-  outreachBody.append(...[...disclosure.children].filter((el) => el !== summary));
   scriptCard.classList.add("outreach-scripts");
-  noteCard.classList.add("outreach-note");
-  outreachBody.append(scriptCard, noteCard);
-  disclosure.append(outreachBody);
 
-  poundIds.push(stepSelect);
   for (const el of poundIds) el.id = `pl-${el.id}`;
   for (const label of poundLabels) {
     label.htmlFor = `pl-${label.htmlFor}`;
@@ -121,48 +87,6 @@ async function init() {
   const warrantyLog = workspace.querySelector("#mainView > .log");
   warrantyLog.prepend(heading("Warranty team log"));
   warrantyLog.before(outreach);
-  const logTabs = document.createElement("div");
-  logTabs.className = "tabs dashboard-log-tabs";
-  logTabs.setAttribute("role", "tablist");
-  logTabs.setAttribute("aria-label", "Logs");
-  const panels = [
-    ["warranty", "Warranty team log", warrantyLog],
-    ["leads", "Lead log", leadLog],
-  ];
-  for (const [id, label, panel] of panels) {
-    const tab = document.createElement("button");
-    tab.type = "button";
-    tab.id = `dashboard-${id}-tab`;
-    tab.className = "tab";
-    tab.textContent = label;
-    tab.setAttribute("role", "tab");
-    panel.id = `dashboard-${id}-log`;
-    panel.setAttribute("role", "tabpanel");
-    panel.setAttribute("aria-labelledby", tab.id);
-    tab.setAttribute("aria-controls", panel.id);
-    tab.setAttribute("aria-selected", String(id === "warranty"));
-    tab.tabIndex = id === "warranty" ? 0 : -1;
-    panel.hidden = id !== "warranty";
-    tab.addEventListener("click", () => {
-      for (const [, , other] of panels) other.hidden = other !== panel;
-      for (const button of logTabs.children) {
-        button.setAttribute("aria-selected", String(button === tab));
-        button.tabIndex = button === tab ? 0 : -1;
-      }
-    });
-    tab.addEventListener("keydown", (event) => {
-      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-      event.preventDefault();
-      const buttons = [...logTabs.children];
-      const next = event.key === "Home" ? buttons[0] : event.key === "End" ? buttons.at(-1)
-        : buttons[(buttons.indexOf(tab) + 1) % buttons.length];
-      next.click();
-      next.focus();
-    });
-    logTabs.append(tab);
-  }
-  warrantyLog.before(logTabs);
-  warrantyLog.after(leadLog);
 
   const warrantyController = await import("./warranty/popup.js");
   await warrantyController.ready;

@@ -2,6 +2,7 @@
 // Each variant has four stages: the first pitch, a soft follow-up after a decline,
 // a follow-up after no answer, and the acceptance reply that points to the emailed invoice.
 // ctx: { first, rep, two, three, build }
+// Keep plan prices; describe optional hardware coverage without "extended warranty" phrasing.
 
 const INVOICE = () =>
   `META PCs will email an invoice to the email address on your order. Please review the coverage and price on the invoice before paying. If it doesn't arrive, reply here and I'll check on it.`;
@@ -10,135 +11,135 @@ export const VARIANTS = [
   {
     id: "v1",
     name: "Control",
-    pitch: (c) => `Hello ${c.first}! This is ${c.rep} from META PCs, one quick message before your window is expired.
+    pitch: (c) => `Hi ${c.first}! This is ${c.rep} from META PCs. Thanks again for your order.
 
-Your build already comes with lifetime phone & email support on us. The extended warranty covers the hardware if something breaks, our US-based repair team fixes or replaces it, no questions asked.
+Your build includes a 1-year hardware warranty and lifetime phone & email support. Optional hardware coverage is available for covered repairs or replacements through our US-based team:
 
 • 2 years – ${c.two}
 • 3 years – ${c.three}
 
-Can only add it before pickup or delivery. Would you like to add either of those options on?`,
-    overcome: (c) => `Totally understand, ${c.first}. Most people don't expect to need it, it's really there for the one time something does fail. If keeping the total down is the concern, the 2-year at ${c.two} still covers the hardware. Want me to add that one? If not, no worries at all, enjoy the new build!`,
-    nudge: (c) => `Hi ${c.first}, just following up on my last message about the extended warranty for your META PCs build. It can only be added before pickup or delivery, so I wanted to make sure you saw it. Would you like the 2-year (${c.two}) or the 3-year (${c.three})?`,
-    accept: (c) => `Awesome, ${c.first}! I'll get the warranty added now. ${INVOICE(c)}`,
+Plans can only be added before pickup or delivery. Would you like to review either option?`,
+    overcome: (c) => `Understood, ${c.first}. Your included coverage stays in place. If you'd like to revisit the optional plans before pickup or delivery, the 2-year is ${c.two}. Happy to answer any questions.`,
+    nudge: (c) => `Hi ${c.first}, ${c.rep} from META PCs. Any questions about the optional hardware coverage for your build? The 2-year plan is ${c.two} and the 3-year is ${c.three}, available before pickup or delivery.`,
+    accept: (c) => `Thanks, ${c.first}! I'll request the plan you chose. ${INVOICE(c)}`,
   },
   {
     id: "v2",
     name: "Golden pitch",
     pitch: (c) => `Hi ${c.first}, ${c.rep} from META PCs here! Thanks again for your order.
 
-Your build comes with 1-year hardware coverage plus lifetime phone & email support. Most of our customers choose to extend the warranty to protect their system longer:
+Your build comes with 1-year hardware coverage plus lifetime phone & email support. If you'd like longer hardware coverage, here are the optional plans:
 
 • 2-year – ${c.two}
 • 3-year – ${c.three}
 
-It can only be added before pickup or delivery. Did you want to go with the 2-year or the 3-year option?`,
-    overcome: (c) => `Totally fair, ${c.first}. The reason I recommend it is that if something does happen, it's a lot easier to have coverage in place than to deal with repair costs later. The catch is it can only be added before pickup or delivery; after that the option is gone. Want me to lock one in while you still can? Either way, no pressure!`,
-    nudge: (c) => `Hi ${c.first}, ${c.rep} from META PCs again. Just following up on the warranty options I sent over. Since it can only be added before pickup or delivery, I didn't want you to miss the window. Did you want to go with the 2-year or the 3-year?`,
-    accept: (c) => `Perfect, ${c.first}! I'll get that added so the system is protected. ${INVOICE(c)}`,
+Plans can only be added before pickup or delivery. Would either be useful for you, or would you prefer the included coverage?`,
+    overcome: (c) => `Totally fair, ${c.first}. The extra coverage is optional. If you'd like to compare the terms before pickup or delivery, I'm happy to help; otherwise we'll keep the included coverage.`,
+    nudge: (c) => `Hi ${c.first}, ${c.rep} from META PCs again. Have you had a chance to review the optional hardware plans? Any questions about the 2-year or 3-year coverage before pickup or delivery?`,
+    accept: (c) => `Thanks, ${c.first}! I'll send the request for your selected plan. ${INVOICE(c)}`,
   },
   {
     id: "v3",
     name: "Friendly",
     pitch: (c) => `Hey ${c.first}! 👋 It's ${c.rep} over at META PCs. Thanks for ordering with us!
 
-Quick heads up before pickup or delivery: you can extend your hardware warranty so if a part ever gives out, our US team fixes or replaces it for you.
+Before pickup or delivery, you can choose optional hardware coverage for covered repairs or replacements through our US team:
 
 • 2 years – ${c.two}
 • 3 years – ${c.three}
 
-Which one sounds good to you?`,
-    overcome: (c) => `No worries at all, ${c.first}! I just didn't want you to miss it, since it's a one-time option that can only be added before pickup or delivery. If a part ever gives out, it's nice to just send it to us and have it handled. Want me to add one before it's too late? If not, enjoy the new setup! 🎮`,
-    nudge: (c) => `Hey ${c.first}! 👋 Just bumping my last message in case it got buried. The warranty can only be added before pickup or delivery, so I wanted to catch you in time. Which one sounds good, 2 years or 3?`,
-    accept: (c) => `Love it, ${c.first}! 🙌 Adding it now. ${INVOICE(c)}`,
+Want to hear more about either plan? Keeping the included coverage is fine too.`,
+    overcome: (c) => `No worries at all, ${c.first}! We'll stick with the included coverage. If you change your mind before pickup or delivery, just reply. Enjoy the new setup! 🎮`,
+    nudge: (c) => `Hey ${c.first}! ${c.rep} at META PCs. Just checking whether you have any questions about the optional 2-year or 3-year hardware plans before pickup or delivery.`,
+    accept: (c) => `Sounds good, ${c.first}! I'll request that plan for you. ${INVOICE(c)}`,
   },
   {
     id: "v4",
     name: "Concise",
-    pitch: (c) => `Hi ${c.first}, ${c.rep} from META PCs. Before pickup or delivery, you can extend your PC's hardware warranty:
+    pitch: (c) => `Hi ${c.first}, ${c.rep} from META PCs. Optional hardware coverage is available before pickup or delivery:
 
 • 2 yr – ${c.two}
 • 3 yr – ${c.three}
 
-Which works better for you?`,
-    overcome: (c) => `Understood, ${c.first}. Just know it can't be added once your PC is picked up or delivered. Want me to lock it in now? If not, all good.`,
-    nudge: (c) => `Hi ${c.first}, quick follow-up: the extended warranty can only be added before pickup or delivery. 2 yr – ${c.two} or 3 yr – ${c.three}?`,
-    accept: (c) => `Done, ${c.first}! Adding it now. ${INVOICE(c)}`,
+Interested in either plan?`,
+    overcome: (c) => `Understood, ${c.first}. We'll keep the included coverage. Reply before pickup or delivery if you'd like to revisit the options.`,
+    nudge: (c) => `Hi ${c.first}, ${c.rep} from META PCs. Any questions about optional hardware coverage? 2 yr – ${c.two}; 3 yr – ${c.three}. Available before pickup or delivery.`,
+    accept: (c) => `Thanks, ${c.first}! I'll request your selected plan. ${INVOICE(c)}`,
   },
   {
     id: "v5",
     name: "Investment",
-    pitch: (c) => `Hi ${c.first}, this is ${c.rep} from META PCs. Since ${c.build} is a real investment, I'd recommend protecting it before pickup or delivery.
+    pitch: (c) => `Hi ${c.first}, this is ${c.rep} from META PCs. Since you're investing in ${c.build}, you may want to compare the hardware coverage options before pickup or delivery.
 
-A gaming PC has several high-value parts, and if one fails out of warranty it gets expensive fast. The extended warranty covers repair or replacement by our US-based team:
+Optional hardware plans cover eligible repairs or replacements through our US-based team:
 
 • 2 years – ${c.two}
 • 3 years – ${c.three}
 
-Which option works better for you?`,
-    overcome: (c) => `I get it, ${c.first}. Compared to the cost of replacing a single major component, the coverage protects you from a much bigger expense later, and this is the only chance to add it before pickup or delivery. Want me to add it now? If not, no problem at all.`,
-    nudge: (c) => `Hi ${c.first}, following up on protecting your new PC. A single failed component can cost more than the coverage itself, and this is the only chance to add it before pickup or delivery. Which option works better for you, the 2-year or the 3-year?`,
-    accept: (c) => `Great call, ${c.first}! Your investment is protected. ${INVOICE(c)}`,
+Would you like to compare either plan with your included coverage?`,
+    overcome: (c) => `I get it, ${c.first}. The extra coverage isn't for everyone. We'll keep the included coverage, and I can answer any questions before pickup or delivery.`,
+    nudge: (c) => `Hi ${c.first}, ${c.rep} from META PCs. Would it help to compare the optional 2-year and 3-year hardware plans with your included coverage before pickup or delivery?`,
+    accept: (c) => `Thanks, ${c.first}! I'll request the coverage you selected. ${INVOICE(c)}`,
   },
   {
     id: "v6",
     name: "Peace of mind",
     pitch: (c) => `Hi ${c.first}! ${c.rep} from META PCs here. One quick thing before pickup or delivery.
 
-If anything ever goes wrong, you shouldn't be stuck diagnosing it or dealing with manufacturer RMAs on your own. The extended warranty means you just send it to us and our US team handles the repair or replacement.
+Your build includes lifetime phone & email support. If you'd like longer hardware coverage for eligible repairs or replacements, our US team can help through these optional plans:
 
 • 2 years – ${c.two}
 • 3 years – ${c.three}
 
-Did you want the 2-year or the 3-year?`,
-    overcome: (c) => `Totally fair, ${c.first}. Hopefully you never need it, it's really just so you're not on your own if something does fail. Since it can only be added before pickup or delivery, I wanted to give you one last chance. Want me to add it? Otherwise no worries, enjoy it!`,
-    nudge: (c) => `Hi ${c.first}, just checking back in. I'd hate for you to be stuck on your own if a part ever fails after the free 1 year warranty, and the warranty can only be added before pickup or delivery. Did you want the 2-year or the 3-year?`,
-    accept: (c) => `Awesome, ${c.first}, you're covered! ${INVOICE(c)}`,
+Would either plan be helpful for you?`,
+    overcome: (c) => `Totally fair, ${c.first}. Your included coverage and lifetime support remain either way. Happy to answer any questions about the optional plans before pickup or delivery.`,
+    nudge: (c) => `Hi ${c.first}, ${c.rep} from META PCs. Any questions about how the optional hardware plans differ from your included coverage? We can review them before pickup or delivery.`,
+    accept: (c) => `Thanks, ${c.first}! I'll request the plan you chose. ${INVOICE(c)}`,
   },
   {
     id: "v8",
     name: "Tech recommendation",
-    pitch: (c) => `Hi ${c.first}, it's ${c.rep} at META PCs. My recommendation: add the extended warranty to any gaming PC before pickup or delivery.
+    pitch: (c) => `Hi ${c.first}, it's ${c.rep} at META PCs. Before pickup or delivery, I can walk you through the optional hardware coverage for your gaming PC.
 
-It covers the CPU, GPU, RAM, motherboard, storage and PSU. If anything fails, our US team fixes or replaces it, so you skip the diagnosing and manufacturer RMAs.
+The plans cover eligible repairs or replacements for the CPU, GPU, RAM, motherboard, storage and PSU through our US team:
 
 • 2 years – ${c.two}
-• 3 years – ${c.three} (what I'd pick)
+• 3 years – ${c.three}
 
-Which one works for you?`,
-    overcome: (c) => `Fair enough, ${c.first}. Even if you know your way around a PC, it saves you from diagnosing and doing manufacturer RMAs yourself. It can only be added before pickup or delivery, so now is the window. Want me to add it? Either way, enjoy the build!`,
-    nudge: (c) => `Hi ${c.first}, following up on my recommendation. The coverage handles CPU, GPU, RAM, motherboard, storage and PSU, and it can only be added before pickup or delivery. Would you want an additional 2 or 3-years of protection?`,
-    accept: (c) => `Solid choice, ${c.first}! I'll add it now. ${INVOICE(c)}`,
+Would you like to review the terms for either plan?`,
+    overcome: (c) => `Fair enough, ${c.first}. You can keep the included coverage. If you'd like to compare the covered components or repair terms before pickup or delivery, I'm happy to help.`,
+    nudge: (c) => `Hi ${c.first}, ${c.rep} at META PCs. Any questions about the components or repairs covered by the optional 2-year and 3-year hardware plans? They can be added before pickup or delivery.`,
+    accept: (c) => `Sounds good, ${c.first}! I'll request your chosen plan. ${INVOICE(c)}`,
   },
   {
     id: "v9",
     name: "Consultative",
     pitch: (c) => `Hi ${c.first}, ${c.rep} from META PCs! Quick question before pickup or delivery: how long are you planning to run this build?
 
-A good PC is meant to last for years, which is why we offer extended hardware coverage. If a part fails, our US team repairs or replaces it:
+If you plan to keep it for a while, these optional hardware plans provide longer coverage for eligible repairs or replacements through our US team:
 
 • 2 years – ${c.two}
 • 3 years – ${c.three}
 
-Which lines up better with how long you'll keep it?`,
-    overcome: (c) => `Makes sense, ${c.first}. The thing to keep in mind is this is the only time it can be added; once your PC is picked up or delivered, it's off the table for the life of the system. Want me to add it while the option's still open? If not, totally fine!`,
-    nudge: (c) => `Hi ${c.first}, just following up. How long are you planning to keep this build? That'll tell you whether the 2-year or the 3-year fits better, and it can only be added before pickup or delivery.`,
-    accept: (c) => `Sounds great, ${c.first}! I'll set that up. ${INVOICE(c)}`,
+Would either fit your plans, or would you prefer to keep the included coverage?`,
+    overcome: (c) => `Makes sense, ${c.first}. We'll stay with the included coverage. If you'd like to revisit the optional plans before pickup or delivery, just let me know.`,
+    nudge: (c) => `Hi ${c.first}, ${c.rep} from META PCs. Would it help to compare the optional 2-year and 3-year hardware plans with how long you expect to keep this build? Happy to help before pickup or delivery.`,
+    accept: (c) => `Thanks, ${c.first}! I'll request the plan you chose. ${INVOICE(c)}`,
   },
   {
     id: "v10",
     name: "Concierge",
     pitch: (c) => `Good day ${c.first}, this is ${c.rep} with META PCs. Thank you again for your order.
 
-Before pickup or delivery, we'd like to offer extended hardware protection. Should any covered component fail, our US-based team will repair or replace it at no cost to you.
+Before pickup or delivery, you can choose optional hardware coverage for eligible repairs or replacements through our US-based team:
 
 • 2-year coverage – ${c.two}
 • 3-year coverage – ${c.three}
 
-Please let me know which option you'd prefer, and I'll take care of the rest.`,
+Please let me know if you'd like to review either plan or keep your included coverage.`,
     overcome: (c) => `Understood, ${c.first}, and thank you for letting me know. Please note that coverage can only be added before pickup or delivery, so should you change your mind, simply reply before then and I'll take care of it. Otherwise, we hope you thoroughly enjoy your new system.`,
-    nudge: (c) => `Good day ${c.first}, I wanted to follow up on my previous message regarding extended hardware protection. As it can only be added before pickup or delivery, please let me know whether you'd prefer the 2-year or 3-year coverage, and I'll take care of the rest.`,
-    accept: (c) => `Thank you, ${c.first}. I'll add the coverage to your order now. ${INVOICE(c)}`,
+    nudge: (c) => `Hello ${c.first}, ${c.rep} with META PCs. Please let me know if you have questions about the optional 2-year or 3-year hardware coverage before pickup or delivery.`,
+    accept: (c) => `Thank you, ${c.first}. I'll request your selected coverage. ${INVOICE(c)}`,
   },
 ];
 

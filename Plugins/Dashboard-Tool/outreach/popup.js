@@ -1,14 +1,9 @@
 import { sendDashMessage } from "./lib/dash.js";
-import { belongsInLeadLog } from "./lib/lead-policy.js";
 import {
   EMAILS,
   LEAD_TYPES,
-  OBJECTIONS,
-  PERSONAS,
   TEXTS,
   WORDINGS,
-  callScript,
-  voicemail,
   warrantyPrices,
 } from "./lib/scripts.js";
 
@@ -22,7 +17,6 @@ const PAGE_KEY = "plPage"; // written by content.js on Dash
 const LEADS_KEY = "plLeads";
 const CURRENT_KEY = "plCurrent";
 const SETTINGS_KEY = "plSettings";
-const CLOUD_KEY = "plLeadCloud";
 const REMOVED_KEY = "plLeadRemoved";
 // Shared with the Warranty Upsell Tracker when both run inside Plugin Manager (same extension storage).
 const WT_AUTH_KEY = "wtAuth";
@@ -31,46 +25,6 @@ const WT_DRAFT_KEY = "wtDraft";
 const SHOPIFY_PAGE_KEY = "wtShopifyPage";
 let shopifyPage = null;
 
-const STATUSES = [
-  "new",
-  "attempted",
-  "contacted",
-  "callback",
-  "sold",
-  "declined",
-  "dead",
-];
-const STATUS_LABEL = {
-  new: "New",
-  attempted: "Attempted",
-  contacted: "Contacted",
-  callback: "Callback set",
-  sold: "Sold",
-  declined: "Declined",
-  dead: "Dead lead",
-};
-const STEPS = [
-  { id: "called", label: "Called", dash: "Called" },
-  { id: "lvm", label: "LVM", dash: "LVM" },
-  { id: "texted", label: "Texted", dash: "Texted" },
-  { id: "emailed", label: "Emailed", dash: "Emailed" },
-];
-const OUTCOMES = [
-  ["", "Choose an outcome"],
-  ["noanswer", "No answer"],
-  ["spoke", "Spoke, interested"],
-  ["callback", "Callback scheduled"],
-  ["sold", "Sold"],
-  ["declined", "Not interested"],
-  ["wrong", "Wrong number"],
-];
-const OUTCOME_STATUS = {
-  spoke: "contacted",
-  callback: "callback",
-  sold: "sold",
-  declined: "declined",
-  wrong: "dead",
-};
 const WT_STATUSES = [
   ["texted", "Texted"],
   ["agreed", "Agreed"],
@@ -95,7 +49,6 @@ const $ = (id) => document.getElementById(
 );
 const els = Object.fromEntries(
   [
-    "count",
     "repLabel",
     "claim",
     "lead",
@@ -116,34 +69,16 @@ const els = Object.fromEntries(
     "wtLog",
     "wtOpen",
     "error",
-    "tickDash",
-    "steps",
-    "cttTip",
     "scriptTabs",
     "scriptTools",
     "script",
-    "outcome",
-    "note",
-    "noteReset",
-    "noteCopy",
-    "noteFill",
-    "logTabs",
-    "nToday",
-    "nAll",
-    "search",
-    "list",
-    "empty",
     "rep",
     "callback",
-    "export",
-    "clearOld",
   ].map((id) => [id, $(id)]),
 );
 
 let leads = {};
 let removedLeads = new Set();
-let cloudIds = new Set();
-let syncing = false;
 let current = null; // the lead shown in the form
 let page = null; // last scrape from Dash
 let settings = { rep: "", callback: "" };
@@ -152,12 +87,9 @@ let wtItems = {};
 let warrantyStatusOrder = null;
 let warrantySavedStatus = "texted";
 let hasWarrantyTool = false;
-let scriptTab = "call";
+let scriptTab = "text";
 let textId = "";
 let emailId = "";
-let logFilter = "today";
-let noteDirty = false;
-const doneSay = new Set();
 
 // ---------- helpers ----------
 const orderKey = (s) =>
@@ -184,32 +116,6 @@ const titleCase = (name) => {
     (_, sep, l) => sep + l.toLocaleUpperCase(),
   );
 };
-const money = (v) => {
-  const n = parseFloat(String(v || "").replace(/[^0-9.]/g, ""));
-  if (!Number.isFinite(n)) return "";
-  return `$${n.toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
-};
-const fmtTime = (ts) =>
-  new Date(ts).toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-const startOfDay = (ts) => {
-  const d = new Date(ts);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-};
-const isToday = (ts) => !!ts && startOfDay(ts) === startOfDay(Date.now());
-function dayLabel(ts) {
-  const diff = Math.round((startOfDay(Date.now()) - startOfDay(ts)) / 86400000);
-  if (diff === 0) return "Today";
-  if (diff === 1) return "Yesterday";
-  return new Date(ts).toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-}
 function showError(msg) {
   els.error.textContent = msg || "";
   els.error.hidden = !msg;
@@ -227,111 +133,6 @@ const send = (type, payload) =>
       resolve({ ok: false, error: e.message });
     }
   });
-const lastTouch = (l) => Math.max(0, ...Object.values(l.steps || {}));
-const worked = (l) => lastTouch(l) > 0 || (l.status && l.status !== "new");
-const nonWarranty = belongsInLeadLog;
-
-function syncStatus(message) {
-  if (unified) document.getElementById("pl-leadSync").textContent = message;
-}
-
-function syncFailure(message) {
-  syncStatus(/permission|PERMISSION_DENIED/i.test(message)
-    ? "Lead work is saved locally. A Firebase project administrator must publish Dashboard-Tool/firestore.rules for the dashboardLeads collection, then click Retry Lead sync. Signing in again or Chrome site access will not fix missing Firestore rules."
-    : `Lead log is local; Firestore sync failed: ${message}`);
-}
-
-async function syncLead(lead) {
-  if (!unified || !nonWarranty(lead) || !/^WL-\d+$/.test(lead.id)) return true;
-  const r = await send("dashboardLeadSave", lead);
-  if (r.ok) syncStatus("Lead log synced. Customer details stay on this device.");
-  else syncFailure(r.error);
-  return r.ok;
-}
-
-async function refreshLeadLog() {
-  if (!unified || syncing) return false;
-  syncing = true;
-  try {
-    for (const id of removedLeads) {
-      if (!/^WL-\d+$/.test(id)) continue;
-      const deletion = await send("dashboardLeadRemove", { id });
-      if (!deletion.ok) throw new Error(deletion.error);
-    }
-    const r = await send("dashboardLeadRefresh");
-    const stored = await chrome.storage.local.get([CLOUD_KEY, REMOVED_KEY]);
-    removedLeads = new Set(stored[REMOVED_KEY] || []);
-    const shared = stored[CLOUD_KEY]?.items || {};
-    for (const id of cloudIds) {
-      if (!shared[id] && nonWarranty(leads[id])) {
-        delete leads[id];
-        removedLeads.add(id);
-        if (current?.id === id) {
-          clearTimeout(saveTimer);
-          current = null;
-          document.getElementById("form").reset();
-          customer.customerChanged();
-          await chrome.storage.local.remove(CURRENT_KEY);
-          fillForm();
-        }
-      }
-    }
-    for (const record of Object.values(shared)) {
-      if (removedLeads.has(record.id)) continue;
-      if (leads[record.id]?.type === "warranty") {
-        const deletion = await send("dashboardLeadRemove", { id: record.id });
-        if (!deletion.ok) throw new Error(deletion.error);
-        continue;
-      }
-      const local = current?.id === record.id ? current : leads[record.id] || blankLead(record.id);
-      leads[record.id] = { ...local, ...record };
-      if (current?.id === record.id) {
-        current = leads[record.id];
-        els.type.value = current.type;
-        applyTypeVisibility();
-        renderSteps();
-        renderWarranty();
-      }
-    }
-    cloudIds = new Set(Object.keys(shared));
-    await chrome.storage.local.set({ [LEADS_KEY]: leads, [REMOVED_KEY]: [...removedLeads] });
-    renderHeader();
-    renderLog();
-    if (!r.ok) throw new Error(r.error);
-    syncStatus("Lead log synced. Customer details stay on this device.");
-    for (const lead of Object.values(leads).filter(nonWarranty)) {
-      if (!shared[lead.id] && !await syncLead(lead)) return false;
-    }
-    return true;
-  } catch (error) {
-    syncFailure(error.message);
-    return false;
-  } finally {
-    syncing = false;
-  }
-}
-
-async function removeLead(id) {
-  clearTimeout(saveTimer);
-  removedLeads.add(id);
-  delete leads[id];
-  if (current?.id === id) {
-    current = null;
-    if (unified) {
-      document.getElementById("form").reset();
-      customer.customerChanged();
-    }
-    await chrome.storage.local.remove(CURRENT_KEY);
-    fillForm();
-  }
-  await chrome.storage.local.set({ [LEADS_KEY]: leads, [REMOVED_KEY]: [...removedLeads] });
-  renderAll();
-  if (unified && /^WL-\d+$/.test(id)) {
-    const r = await send("dashboardLeadRemove", { id });
-    syncStatus(r.ok ? "Lead removed locally and from Firestore. Dash is unchanged." : `Lead removed locally; Firestore deletion needs retry: ${r.error}`);
-  }
-}
-
 async function flash(button, text, done = "Copied") {
   await navigator.clipboard.writeText(text);
   const label = button.textContent;
@@ -342,17 +143,15 @@ async function flash(button, text, done = "Copied") {
     button.classList.remove("done");
   }, 900);
 }
-function copyButton(getText, label = "Copy", cls = "copy", phone = false) {
+function copyButton(text, label = "Copy", cls = "copy") {
   const b = document.createElement("button");
   b.type = "button";
   b.className = cls;
   b.textContent = label;
-  b.title = phone && dashboard ? "Copy number and prepare a text if RingCentral is open" : "Click to copy";
+  b.title = "Click to copy";
   b.addEventListener("click", async () => {
     try {
-      const text = typeof getText === "function" ? getText() : getText;
       await flash(b, text);
-      if (phone && dashboard) await dashboard.prepareText(text);
       showError("");
     } catch (error) {
       showError(error.message);
@@ -411,13 +210,11 @@ function ctx() {
     first: first || "there",
     rep: repName() || "{your name}",
     callback: prettyPhone(settings.callback),
-    amount: money(l.amount),
     lender: (l.lender || "").trim(),
     order: (l.order || "").trim().toUpperCase(),
     two: w.two,
     three: w.three,
     priceKnown: w.known,
-    persona: l.persona || (l.type === "financing" ? "financing" : ""),
   };
 }
 
@@ -434,11 +231,6 @@ function blankLead(id) {
     amount: "",
     systemPrice: "",
     watercooled: false,
-    persona: "",
-    steps: {},
-    status: "new",
-    outcome: "",
-    note: "",
     url: "",
     ts: Date.now(),
     updatedAt: Date.now(),
@@ -469,22 +261,16 @@ function mergeScrape(lead, p, overwrite) {
 }
 
 let saveTimer = 0;
-function save(now = false, sync = true) {
+function save(now = false) {
   if (!current) return;
   current.updatedAt = Date.now();
   leads[current.id] = current;
   clearTimeout(saveTimer);
   const currentId = current.id;
-  const snapshot = structuredClone(current);
   const write = async () => {
     saveTimer = 0;
     try {
-      if (unified && snapshot.status === "dead") {
-        await removeLead(snapshot.id);
-        return;
-      }
       await chrome.storage.local.set({ [LEADS_KEY]: leads, [CURRENT_KEY]: currentId });
-      if (sync) await syncLead(snapshot);
     } catch (error) {
       showError(`Couldn't save the lead: ${error.message}`);
     }
@@ -497,14 +283,12 @@ function show(lead, explicit = false, automatic = false) {
   if (unified && lead && removedLeads.has(lead.id)) return false;
   if (unified && lead && !automatic && customer.draftConflicts(customer.readCustomer(), lead)) {
     if (!explicit) {
-      showError("A Dash lead is available. Your customer draft was kept; select the lead from the Lead log to replace it.");
+      showError("A Dash lead is available. Your customer draft was kept; clear the fields and reopen the lead on Dash to load it.");
       return false;
     }
     if (!confirm("Replace the shared customer form with this Dash lead? Your saved Warranty records will not change.")) return false;
   }
   current = lead;
-  doneSay.clear();
-  noteDirty = false;
   textId = "";
   emailId = "";
   warrantyStatusOrder = null;
@@ -525,9 +309,6 @@ function fillForm() {
   }
   if (!unified || l) els.watercooled.checked = !!l?.watercooled;
   els.type.value = l?.type || "other";
-  els.outcome.value = l?.outcome || "";
-  els.note.value = l?.note || "";
-  noteDirty = !!l?.note;
   for (const el of els.lead.querySelectorAll("input, select, button")) {
     if (el !== els.readPage) el.disabled = !l;
   }
@@ -547,88 +328,16 @@ function applyTypeVisibility() {
 // ---------- rendering ----------
 function renderAll() {
   renderHeader();
-  // renderClaim();
-  renderSteps();
   renderWarranty();
   renderScriptTabs();
   renderScript();
-  renderNote();
-  renderLog();
 }
 
 function renderHeader() {
-  const today = Object.values(leads).filter((l) =>
-    isToday(lastTouch(l)),
-  ).length;
-  els.count.textContent = `${today} worked today`;
   els.repLabel.textContent = repName() || "set your name ↓";
 }
 
 
-
-function renderSteps() {
-  if (unified) {
-    els.tickDash.disabled = !current?.url;
-    els.tickDash.title = current?.url ? "Also mark this step on the Dash lead" : "Read a Dash lead first; manual customer steps are kept locally.";
-    els.noteFill.disabled = !current?.url;
-    const dropdown = document.getElementById("pl-stepSelect");
-    dropdown.disabled = !current;
-    dropdown.replaceChildren(new Option("Log an outreach step...", ""),
-      ...STEPS.map((step) => new Option(
-        `${current?.steps?.[step.id] ? "Undo" : "Mark"} ${step.label}${current?.steps?.[step.id] ? ` (${fmtTime(current.steps[step.id])})` : ""}`,
-        step.id,
-      )));
-  }
-  els.steps.replaceChildren(
-    ...STEPS.map((s) => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "step";
-      b.disabled = !current;
-      const ts = current?.steps?.[s.id];
-      b.setAttribute("aria-pressed", String(!!ts));
-      const small = document.createElement("small");
-      small.textContent = ts ? fmtTime(ts) : "";
-      b.append(s.label, small);
-      b.addEventListener("click", () => toggleStep(s));
-      return b;
-    }),
-  );
-  const st = current?.steps || {};
-  let tip =
-    "Start with a call. If they don't answer, leave a voicemail and send a text. Add your attempts to the ticket.";
-  if (st.called && !st.lvm && !st.texted)
-    tip = "No answer? Leave a voicemail, then send a text.";
-  else if (st.called && st.lvm && !st.texted)
-    tip =
-      "Send a text to follow up. Add it to the activity note so the team can see it.";
-  else if (st.texted && !st.emailed && current?.email)
-    tip =
-      "You can email them too. Post the activity note so the team can see your attempts.";
-  else if (Object.keys(st).length)
-    tip =
-      "Post the activity note on Dash to count this attempt toward Claim 5.";
-  els.cttTip.textContent = tip;
-}
-
-async function toggleStep(s) {
-  if (!current) return;
-  current.steps = { ...current.steps };
-  const on = !current.steps[s.id];
-  if (on) current.steps[s.id] = Date.now();
-  else delete current.steps[s.id];
-  if (on && current.status === "new") current.status = "attempted";
-  save(true);
-  renderAll();
-  if (on && els.tickDash.checked && !els.tickDash.disabled) {
-    const r = await toDash({ type: "plTick", step: s.dash });
-    if (!r?.ok) showError(r?.error || "");
-    else if (!r.found)
-      showError(
-        `Couldn't find the "${s.dash}" box on Dash. Please check it there.`,
-      );
-  }
-}
 
 // ---------- warranty tool link ----------
 function renderWarranty() {
@@ -717,37 +426,12 @@ async function logWarranty() {
   els.wtLog.disabled = false;
   showError(r.ok ? "" : r.error);
   if (r.ok && unified) {
-    syncStatus("Warranty status saved in the Warranty team log.");
     if (current === savedLead) {
       document.getElementById("form").reset();
       els.order.focus();
     }
   }
   return r.ok;
-}
-
-// Customer accepted the warranty: log it as Agreed with every detail we have.
-async function acceptWarranty() {
-  if (!hasWarrantyTool || current?.type !== "warranty") return;
-  const key = orderKey(current.order);
-  if (!wtAuth)
-    return showError(
-      "Sign in on the Warranty Upsell Tracker tab to log this sale as Agreed.",
-    );
-  if (!key)
-    return showError(
-      "Add the MPC order number so this sale can be logged as Agreed in the Warranty Tool.",
-    );
-  const e = wtItems[key];
-  // Paid is further along than Agreed; keep it.
-  els.wtStatus.value =
-    e && !e.hidden && e.status === "paid" ? "paid" : "agreed";
-  const statusLabel = els.wtStatus.value === "paid" ? "Paid" : "Agreed";
-  if (await logWarranty() && !unified) {
-    els.wtHint.textContent = `Logged ${key} as ${statusLabel} in the Warranty Tool with the customer's details.`;
-    els.wtHint.dataset.tone = "ok";
-    els.wtHint.hidden = false;
-  }
 }
 
 // Warranty and outreach now share the same form.
@@ -758,11 +442,8 @@ async function openWarranty() {
 
 // ---------- scripts ----------
 const TABS = [
-  ["call", "Call"],
-  ["vm", "Voicemail"],
   ["text", "Text"],
   ["email", "Email"],
-  ["obj", "Objections"],
 ];
 function renderScriptTabs() {
   els.scriptTabs.replaceChildren(
@@ -859,58 +540,7 @@ function renderScript() {
   const tools = [];
   const out = [];
 
-  if (scriptTab === "call") {
-    if (type === "warranty")
-      tools.push(
-        select(
-          PERSONAS.map((p) => [p.id, p.name]),
-          c.persona,
-          (v) => {
-            if (!current) return;
-            current.persona = v;
-            save();
-            renderScript();
-          },
-          "Customer type",
-        ),
-      );
-    const steps = callScript(type, c);
-    tools.push(...wordingControls(steps.map((_, i) => wordingKey(i))));
-    steps.forEach((_, i) => {
-      const key = wordingKey(i);
-      const step = callScript(type, scriptContext(key))[i];
-      const box = document.createElement("div");
-      box.className = "say-step";
-      box.classList.toggle("done", doneSay.has(i));
-      const h = document.createElement("h3");
-      h.textContent = step.title;
-      h.title = "Click when you've said this";
-      h.style.cursor = "pointer";
-      h.addEventListener("click", () => {
-        doneSay.has(i) ? doneSay.delete(i) : doneSay.add(i);
-        box.classList.toggle("done", doneSay.has(i));
-      });
-      const p = document.createElement("p");
-      p.textContent = `“${step.say}”`;
-      const actions = document.createElement("div");
-      actions.className = "say-actions";
-      actions.append(anotherWording([key]), copyButton(step.say));
-      box.append(h, actions, p);
-      if (step.tip) {
-        const t = document.createElement("p");
-        t.className = "tip";
-        t.textContent = step.tip;
-        box.append(t);
-      }
-      out.push(box);
-    });
-  } else if (scriptTab === "vm") {
-    const key = wordingKey();
-    const text = voicemail(type, scriptContext(key));
-    tools.push(...wordingControls([key]));
-    tools.push(copyButton(text, "Copy voicemail", "ghost small"));
-    out.push(msgBlock(text));
-  } else if (scriptTab === "text") {
+  if (scriptTab === "text") {
     const list = TEXTS[type] || TEXTS.other;
     const t = list.find((x) => x.id === textId) || list[0];
     const key = wordingKey(t.id);
@@ -963,29 +593,8 @@ function renderScript() {
       tools.push(a);
     }
     out.push(msgBlock(subject, "msg subject"), msgBlock(body));
-  } else {
-    const objections = OBJECTIONS[type] || OBJECTIONS.other;
-    tools.push(...wordingControls(objections.map((_, i) => wordingKey(i))));
-    for (const [i, o] of objections.entries()) {
-      const key = wordingKey(i);
-      const box = document.createElement("div");
-      box.className = "say-step";
-      const h = document.createElement("h3");
-      h.textContent = `“${o.q}”`;
-      const text = o.a(scriptContext(key));
-      const p = document.createElement("p");
-      p.textContent = text;
-      const actions = document.createElement("div");
-      actions.className = "say-actions";
-      actions.append(anotherWording([key]), copyButton(text));
-      box.append(h, actions, p);
-      out.push(box);
-    }
   }
-  const quotesWarranty =
-    type === "warranty"
-      ? scriptTab !== "obj"
-      : type === "financing" && (scriptTab === "call" || scriptTab === "obj");
+  const quotesWarranty = type === "warranty";
   if (!c.priceKnown && quotesWarranty) {
     const t = document.createElement("p");
     t.className = "tip";
@@ -996,188 +605,11 @@ function renderScript() {
   if (!repName()) {
     const t = document.createElement("p");
     t.className = "tip";
-    t.textContent = "Add your name in Settings to personalize the scripts.";
+    t.textContent = "Add your name in Message settings to personalize the templates.";
     out.unshift(t);
   }
   els.scriptTools.replaceChildren(...tools);
   els.script.replaceChildren(...out);
-}
-
-// ---------- activity note ----------
-function buildNote() {
-  const l = current;
-  if (!l) return "";
-  const st = l.steps || {};
-  const parts = [];
-  if (st.called)
-    parts.push(
-      l.outcome === "noanswer" || st.lvm ? "Called, no answer" : "Called",
-    );
-  if (st.lvm) parts.push("LVM");
-  if (st.texted) parts.push("Texted");
-  if (st.emailed) parts.push("Emailed");
-  const when = new Date().toLocaleString(undefined, {
-    month: "numeric",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-  const outcome = l.outcome && OUTCOMES.find(([v]) => v === l.outcome)?.[1];
-  let s = `CTT ${when}: ${parts.join(", ") || "Attempted contact"}.`;
-  if (outcome && l.outcome !== "noanswer") s += ` ${outcome}.`;
-  if (st.lvm || st.texted || st.emailed)
-    s += " Asked for a good time to call back.";
-  if (l.type === "warranty" && l.order)
-    s += ` Warranty offered for ${l.order.toUpperCase()}.`;
-  if (l.type === "abandoned") s += " Abandoned-cart follow-up.";
-  s += " Next: ___";
-  return `${s}\n${repName() || "{your name}"}`;
-}
-function renderNote() {
-  if (!noteDirty) els.note.value = buildNote();
-}
-
-// ---------- log ----------
-function renderLog() {
-  const all = Object.values(leads).filter((lead) => unified ? nonWarranty(lead) : worked(lead));
-  const today = all.filter((l) => isToday(lastTouch(l) || l.updatedAt));
-  els.nToday.textContent = today.length;
-  els.nAll.textContent = all.length;
-  for (const b of els.logTabs.querySelectorAll(".tab"))
-    b.setAttribute("aria-selected", String(b.dataset.filter === logFilter));
-
-  const q = els.search.value.trim().toLowerCase();
-  const qd = digits(q);
-  const shown = (logFilter === "today" ? today : all)
-    .filter(
-      (l) =>
-        !q ||
-        (qd && digits(l.phone).includes(qd)) ||
-        [l.customer, l.order, l.id, l.lender].some((v) =>
-          String(v || "")
-            .toLowerCase()
-            .includes(q),
-        ),
-    )
-    .sort(
-      (a, b) => (lastTouch(b) || b.updatedAt) - (lastTouch(a) || a.updatedAt),
-    );
-
-  els.list.replaceChildren();
-  els.empty.hidden = shown.length > 0;
-  els.empty.textContent = all.length
-    ? "No matches."
-    : "No leads worked yet. Viewing a Dash lead does not claim it or add it here. Log an outreach step or outcome to add it.";
-
-  let lastDay = null;
-  for (const l of shown) {
-    const ts = lastTouch(l) || l.updatedAt;
-    const day = dayLabel(ts);
-    if (day !== lastDay) {
-      const h = document.createElement("div");
-      h.className = "day";
-      h.textContent = day;
-      els.list.append(h);
-      lastDay = day;
-    }
-    const row = document.createElement("div");
-    row.className = "item";
-    row.classList.toggle("current", l.id === current?.id);
-
-    const title = document.createElement(unified ? "button" : "div");
-    if (unified) title.type = "button";
-    title.className = "phone";
-    if (unified) title.classList.add("link");
-    title.textContent = titleCase(l.customer) || l.id;
-    title.title = "Load this lead";
-    title.addEventListener("click", () => {
-      if (current) save(true, !!saveTimer);
-      if (show({ ...l }, true)) save(true, false);
-    });
-
-    const meta = document.createElement("div");
-    meta.className = "meta";
-    const type = document.createElement("span");
-    type.className = "by";
-    type.textContent = LEAD_TYPES[l.type] || "Lead";
-    const id = document.createElement("span");
-    id.textContent = unified && l.id.startsWith("WT-") ? "Manual" : l.id;
-    meta.append(type, id);
-    if (l.order) {
-      const o = dashboard
-        ? dashboard.orderButton(l.order, showError)
-        : document.createElement("span");
-      o.textContent = l.order;
-      meta.append(o);
-    }
-    if (l.amount) {
-      const a = document.createElement("span");
-      a.textContent = money(l.amount);
-      meta.append(a);
-    }
-    if (l.phone)
-      meta.append(copyButton(prettyPhone(l.phone), prettyPhone(l.phone), "copy", true));
-    const dots = document.createElement("span");
-    dots.className = "dots";
-    dots.title = STEPS.map(
-      (s) => `${s.label}: ${l.steps?.[s.id] ? fmtTime(l.steps[s.id]) : "-"}`,
-    ).join("\n");
-    dots.textContent = STEPS.map((s) => (l.steps?.[s.id] ? "●" : "○")).join("");
-    meta.append(dots);
-
-    const side = document.createElement("div");
-    side.className = "side";
-    const chip = select(
-      STATUSES.map((s) => [s, STATUS_LABEL[s]]),
-      l.status || "new",
-      async (v) => {
-        const target = l.id === current?.id ? current : leads[l.id];
-        if (unified && v === "dead") {
-          await removeLead(l.id);
-          return;
-        }
-        target.status = v;
-        chip.dataset.status = v;
-        leads[l.id] = { ...target, updatedAt: Date.now() };
-        await chrome.storage.local.set({ [LEADS_KEY]: leads });
-        await syncLead(leads[l.id]);
-        renderLog();
-      },
-      `Status for ${l.id}`,
-    );
-    chip.dataset.status = l.status || "new";
-    side.append(chip);
-    if (l.url) {
-      const open = document.createElement("button");
-      open.type = "button";
-      open.className = "del";
-      open.textContent = "↗";
-      open.title = "Open on Dash";
-      open.addEventListener("click", () => chrome.tabs.create({ url: l.url }));
-      side.append(open);
-    }
-    const del = document.createElement("button");
-    del.type = "button";
-    del.className = "del";
-    del.textContent = "×";
-    del.title = "Remove from this log";
-    del.addEventListener("click", async () => {
-      if (!confirm(`Remove ${l.id} from your log? (Nothing changes on Dash.)`))
-        return;
-      if (unified) {
-        await removeLead(l.id);
-        return;
-      }
-      delete leads[l.id];
-      if (current?.id === l.id)
-        current = { ...blankLead(l.id), ...l, steps: {}, status: "new" };
-      chrome.storage.local.set({ [LEADS_KEY]: leads });
-      renderAll();
-    });
-    side.append(del);
-    row.append(title, meta, side);
-    els.list.append(row);
-  }
 }
 
 // ---------- events ----------
@@ -1210,8 +642,8 @@ function showShopifyOrder(data) {
     current = lead;
     fillForm();
     renderAll();
-    save(true, false);
-  } else if (show(lead, false, true)) save(true, false);
+    save(true);
+  } else if (show(lead, false, true)) save(true);
 }
 
 for (const f of FIELDS) {
@@ -1223,7 +655,6 @@ for (const f of FIELDS) {
     save();
     renderWarranty();
     renderScript();
-    renderNote();
   });
 }
 els.customer.addEventListener("blur", () => {
@@ -1241,16 +672,6 @@ els.phone.addEventListener("blur", () => {
 if (dashboard && !unified) dashboard.addPhoneCopy(els.phone, showError);
 if (unified) {
   document.addEventListener("dashboard:save-warranty", logWarranty);
-  document.getElementById("pl-stepSelect").addEventListener("change", (event) => {
-    const step = STEPS.find((value) => value.id === event.target.value);
-    if (step) toggleStep(step);
-  });
-  document.getElementById("pl-leadRetry").addEventListener("click", async () => {
-    if (!await refreshLeadLog()) return;
-    for (const lead of Object.values(leads).filter(nonWarranty)) {
-      if (!await syncLead(lead)) return;
-    }
-  });
   document.getElementById("form").addEventListener("reset", () => {
     if (current) save(true);
     queueMicrotask(() => {
@@ -1270,61 +691,11 @@ els.watercooled.addEventListener("change", () => {
 });
 els.type.addEventListener("change", () => {
   if (!current) return;
-  const previousType = current.type;
   current.type = els.type.value;
-  if (unified && previousType !== "warranty" && current.type === "warranty" && /^WL-\d+$/.test(current.id)) {
-    send("dashboardLeadRemove", { id: current.id }).then((r) => {
-      if (!r.ok) syncStatus(`Lead type changed locally; remove its old Lead entry with Retry Lead sync: ${r.error}`);
-    });
-  }
   textId = emailId = "";
   save();
   applyTypeVisibility();
   renderAll();
-});
-els.outcome.addEventListener("change", () => {
-  if (!current) return;
-  current.outcome = els.outcome.value;
-  const st = OUTCOME_STATUS[current.outcome];
-  if (st) current.status = st;
-  else if (current.status === "new") current.status = "attempted";
-  if (unified && current.status === "dead") {
-    removeLead(current.id).catch((error) => showError(error.message));
-    return;
-  }
-  save(true);
-  renderNote();
-  renderLog();
-  if (current.outcome === "sold") acceptWarranty();
-});
-els.note.addEventListener("input", () => {
-  noteDirty = true;
-  if (current) {
-    current.note = els.note.value;
-    save();
-  }
-});
-els.noteReset.addEventListener("click", () => {
-  noteDirty = false;
-  if (current) {
-    current.note = "";
-    save();
-  }
-  renderNote();
-});
-els.noteCopy.addEventListener("click", () =>
-  flash(els.noteCopy, els.note.value).catch(() => {}),
-);
-els.noteFill.addEventListener("click", async () => {
-  const r = await toDash({ type: "plFillNote", text: els.note.value });
-  if (!r?.ok) return showError(r?.error || "Couldn't reach Dash.");
-  if (!r.found)
-    return showError(
-      "Couldn't find the activity note box on Dash. Copy the note and paste it there.",
-    );
-  showError("");
-  els.noteFill.textContent = "Added. Click Post on Dash.";
-  setTimeout(() => (els.noteFill.textContent = "Add to Dash note"), 2200);
 });
 els.readPage.addEventListener("click", async () => {
   const r = await toDash({ type: "plScrape" });
@@ -1332,110 +703,22 @@ els.readPage.addEventListener("click", async () => {
   page = r.data;
   if (!page?.leadId)
     return showError("Open a lead on the Dash Pound list first.");
-  if (show(fromPage(page, true), true)) save(true, false);
+  if (show(fromPage(page, true), true)) save(true);
 });
 els.wtLog.addEventListener("click", logWarranty);
 els.wtOpen.addEventListener("click", openWarranty);
-els.search.addEventListener("input", renderLog);
-for (const b of els.logTabs.querySelectorAll(".tab")) {
-  b.addEventListener("click", () => {
-    logFilter = b.dataset.filter;
-    renderLog();
-  });
-}
 for (const k of ["rep", "callback"]) {
   els[k].addEventListener("input", () => {
     settings[k] = els[k].value.trim();
     chrome.storage.local.set({ [SETTINGS_KEY]: settings });
     renderHeader();
     renderScript();
-    renderNote();
   });
 }
 els.repLabel.addEventListener("click", () => {
   const d = els.rep.closest(".settings");
   d.open = true;
   els.rep.focus();
-});
-els.export.addEventListener("click", () => {
-  const rows = Object.values(leads).filter((lead) => unified ? nonWarranty(lead) : worked(lead));
-  if (!rows.length) return;
-  const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const iso = (ts) => (ts ? new Date(ts).toISOString() : "");
-  const data = [
-    [
-      "Lead",
-      "Type",
-      "Customer",
-      "Phone",
-      "Email",
-      "Order",
-      "Lender",
-      "Amount (approval/cart)",
-      "Status",
-      "Called",
-      "LVM",
-      "Texted",
-      "Emailed",
-      "Note",
-      "Dash URL",
-    ],
-  ].concat(
-    rows.map((l) => [
-      l.id,
-      LEAD_TYPES[l.type],
-      l.customer,
-      l.phone,
-      l.email,
-      l.order,
-      l.lender,
-      l.amount,
-      STATUS_LABEL[l.status],
-      iso(l.steps?.called),
-      iso(l.steps?.lvm),
-      iso(l.steps?.texted),
-      iso(l.steps?.emailed),
-      l.note,
-      l.url,
-    ]),
-  );
-  const blob = new Blob([data.map((r) => r.map(esc).join(",")).join("\n")], {
-    type: "text/csv",
-  });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `poundlist-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-});
-els.clearOld.addEventListener("click", async () => {
-  if (
-    !confirm(
-      unified
-        ? "Remove all non-warranty leads from this device and the shared Firestore Lead log? Dash and Warranty records will not change. Export a CSV first if needed."
-        : "Clear every lead from your Pound List log on this device? Export a CSV first if you need it.",
-    )
-  )
-    return;
-  if (unified) {
-    for (const lead of Object.values(leads).filter(nonWarranty)) await removeLead(lead.id);
-    return;
-  }
-  leads = current
-    ? {
-        [current.id]: {
-          ...current,
-          steps: {},
-          status: "new",
-          outcome: "",
-          note: "",
-        },
-      }
-    : {};
-  if (current) current = leads[current.id];
-  chrome.storage.local.set({ [LEADS_KEY]: leads });
-  fillForm();
-  renderAll();
 });
 
 // New scrapes from Dash switch the panel to that lead and fill blank fields.
@@ -1445,8 +728,8 @@ chrome.storage.onChanged.addListener((c, area) => {
   if (c[PAGE_KEY]) {
     page = c[PAGE_KEY].newValue || null;
     if (page?.leadId && page.leadId !== current?.id) {
-      if (current) save(true, !!saveTimer);
-      if (show(fromPage(page, false), false, unified)) save(true, false);
+      if (current) save(true);
+      if (show(fromPage(page, false), false, unified)) save(true);
     } else if (page?.leadId && current) {
       const merged = mergeScrape(current, page, false);
       const changed =
@@ -1456,7 +739,7 @@ chrome.storage.onChanged.addListener((c, area) => {
         if (!unified || !customer.draftConflicts(customer.readCustomer(), merged)) {
           current = merged;
           fillForm();
-          save(false, false);
+          save();
           renderAll();
         } else {
           showError(unified
@@ -1465,14 +748,12 @@ chrome.storage.onChanged.addListener((c, area) => {
         }
       }
     }
-    // renderClaim();
   }
   if (c[WT_AUTH_KEY] || c[WT_CACHE_KEY]) {
     wtAuth = c[WT_AUTH_KEY] ? c[WT_AUTH_KEY].newValue || null : wtAuth;
     if (c[WT_CACHE_KEY]) wtItems = c[WT_CACHE_KEY].newValue?.items || {};
     renderHeader();
     renderWarranty();
-    if (unified && c[WT_AUTH_KEY] && wtAuth) refreshLeadLog();
   }
 });
 
@@ -1481,7 +762,6 @@ export const ready = (async () => {
   els.type.replaceChildren(
     ...Object.entries(LEAD_TYPES).map(([v, t]) => new Option(t, v)),
   );
-  els.outcome.replaceChildren(...OUTCOMES.map(([v, t]) => new Option(t, v)));
   els.wtStatus.replaceChildren(
     ...WT_STATUSES.map(([v, t]) => new Option(t, v)),
   );
@@ -1494,7 +774,6 @@ export const ready = (async () => {
     WT_AUTH_KEY,
     WT_CACHE_KEY,
     REMOVED_KEY,
-    CLOUD_KEY,
     SHOPIFY_PAGE_KEY,
   ]);
   settings = { ...settings, ...d[SETTINGS_KEY] };
@@ -1513,16 +792,8 @@ export const ready = (async () => {
       customer.customerChanged();
     }
   }
-  cloudIds = new Set(Object.keys(d[CLOUD_KEY]?.items || {}));
-
-  // The standalone tool expires unworked drafts; the combined Lead log keeps all active leads.
-  const weekAgo = Date.now() - 7 * 86400000;
-  leads = Object.fromEntries(
-    Object.entries(d[LEADS_KEY] || {}).filter(
-      ([id, l]) => (!unified || (l.status !== "dead" && !removedLeads.has(id))) &&
-        (unified || worked(l) || l.updatedAt > weekAgo),
-    ),
-  );
+  // Keep existing local drafts and history intact; lead tracking is handled on Dash.
+  leads = d[LEADS_KEY] || {};
 
   hasWarrantyTool = true;
 
@@ -1537,13 +808,8 @@ export const ready = (async () => {
     const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true, url: "https://admin.shopify.com/*" });
     if (tabs.some((tab) => tab.url === d[SHOPIFY_PAGE_KEY].url)) showShopifyOrder(d[SHOPIFY_PAGE_KEY]);
   }
-  if (current) save(true, false);
+  if (current) save(true);
   if (unified) {
-    // Remove pre-existing dead entries, including their cloud metadata, without retaining history.
-    for (const lead of Object.values(d[LEADS_KEY] || {}).filter((lead) => lead.status === "dead")) {
-      await removeLead(lead.id);
-    }
-    await refreshLeadLog();
     const tabs = await chrome.tabs.query({
       active: true, lastFocusedWindow: true,
       url: ["https://dash.metapcs.com/*", "https://metapcs-platform.web.app/*"],
@@ -1553,17 +819,13 @@ export const ready = (async () => {
         const r = await sendDashMessage(tabs[0].id, { type: "plScrape" });
         if (!r?.ok) throw new Error(r?.error || "Dash did not respond.");
         if (r.data?.leadId && !removedLeads.has(r.data.leadId)) {
-          if (current) save(true, !!saveTimer);
+          if (current) save(true);
           page = r.data;
-          if (show(fromPage(page, false), false, true)) save(true, false);
+          if (show(fromPage(page, false), false, true)) save(true);
         }
       } catch (error) {
         showError(`Automatic Dash reading failed. Check Plugin Manager's site access for Dash in chrome://extensions: ${error.message}`);
       }
     }
-    const syncTimer = setInterval(() => {
-      if (document.visibilityState === "visible" && wtAuth) refreshLeadLog();
-    }, 60000);
-    window.addEventListener("unload", () => clearInterval(syncTimer), { once: true });
   }
 })();

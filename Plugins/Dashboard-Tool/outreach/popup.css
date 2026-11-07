@@ -717,59 +717,22 @@ h2 {
   font-size: 14px;
   font-weight: 600;
 }
-.mini {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--muted);
-  font-size: 12px;
-  cursor: pointer;
-}
-.mini input {
-  width: auto;
-  height: auto;
-  margin: 0;
-  accent-color: var(--accent);
-}
-.steps {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-}
-.step {
-  display: grid;
-  justify-items: start;
-  gap: 1px;
-  padding: 6px 4px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-.step small {
-  font-size: 11px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  min-height: 15px;
-}
-.step:hover {
-  color: var(--ink);
-  border-color: var(--muted);
-}
-.step[aria-pressed="true"] {
-  color: var(--ok);
-  border-color: var(--ok);
-  background: var(--ok-soft);
-}
 .tip {
   margin: 0;
   color: var(--muted);
   font-size: 12px;
 }
 .card .tabs-main {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+#scriptTabs {
+  gap: 8px;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+#scriptTabs .tab {
+  min-height: 40px;
+  padding: 10px 16px;
 }
 .log .tabs-main .tab[aria-selected="true"],
 .card .tabs-main .tab[aria-selected="true"] {
@@ -794,43 +757,6 @@ h2 {
   gap: 8px;
   max-height: 46vh;
   overflow-y: auto;
-}
-.say-step {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 2px 8px;
-  padding: 8px 0;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
-  background: transparent;
-}
-.say-step h3 {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: none;
-  color: var(--accent);
-}
-.say-step p {
-  grid-column: 1 / -1;
-  margin: 0;
-}
-.say-step .tip {
-  grid-column: 1 / -1;
-}
-.say-step.done {
-  opacity: 0.55;
-}
-.say-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-}
-.say-actions .copy {
-  margin: 0;
 }
 .msg {
   margin: 0;

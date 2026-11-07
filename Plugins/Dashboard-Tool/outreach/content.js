@@ -230,72 +230,10 @@
   push(true);
 
   // ---------- actions requested by the side panel ----------
-  function setNativeValue(el, value) {
-    const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-    Object.getOwnPropertyDescriptor(proto, "value").set.call(el, value);
-    el.dispatchEvent(new Event("input", { bubbles: true }));
-    el.dispatchEvent(new Event("change", { bubbles: true }));
-  }
-
-  function noteBox() {
-    const visible = (el) => el.offsetParent !== null;
-    const areas = [...document.querySelectorAll("textarea")].filter(visible);
-    return areas.find((a) => /note|activity/i.test(`${a.placeholder} ${a.name} ${a.id} ${a.getAttribute("aria-label") || ""}`)) || areas[0] || null;
-  }
-
-  function fillNote(text) {
-    const box = noteBox();
-    if (!box) return false;
-    const cur = box.value.trim();
-    setNativeValue(box, cur ? `${cur}\n${text}` : text);
-    box.focus();
-    box.scrollIntoView({ block: "center", behavior: "smooth" });
-    return true;
-  }
-
-  // Ticks a CTT box (Called / LVM / Texted / Emailed) on the lead if it isn't ticked yet.
-  function tick(step) {
-    const want = step.toLowerCase();
-    for (const label of document.querySelectorAll("label")) {
-      if (clean(label.innerText).toLowerCase() !== want) continue;
-      const input = label.control || label.querySelector("input[type=checkbox]");
-      if (input && input.type === "checkbox") {
-        if (!input.checked) input.click();
-        return true;
-      }
-    }
-    for (const box of document.querySelectorAll("[role=checkbox]")) {
-      const name = clean(box.getAttribute("aria-label") || box.innerText || box.parentElement?.innerText).toLowerCase();
-      if (name !== want) continue;
-      if (box.getAttribute("aria-checked") !== "true") box.click();
-      return true;
-    }
-    for (const button of document.querySelectorAll("button")) {
-      if (clean(button.innerText).toLowerCase() !== want) continue;
-      const pressed = button.getAttribute("aria-pressed") ?? button.getAttribute("aria-checked");
-      if (pressed !== null) {
-        if (pressed !== "true") button.click();
-        return true;
-      }
-      const indicator = button.querySelector("span");
-      if (!indicator) continue;
-      const background = getComputedStyle(indicator).backgroundColor;
-      const checked = /[✓✔☑]/.test(indicator.innerText) ||
-        (background !== "transparent" && background !== "rgba(0, 0, 0, 0)");
-      if (!checked) button.click();
-      return true;
-    }
-    return false;
-  }
-
   const onMessage = (msg, _sender, respond) => {
     if (msg?.type === "plScrape") {
       push(true);
       respond({ ok: true, data: scrape() });
-    } else if (msg?.type === "plFillNote") {
-      respond({ ok: true, found: fillNote(String(msg.text || "")) });
-    } else if (msg?.type === "plTick") {
-      respond({ ok: true, found: tick(String(msg.step || "")) });
     }
     return false;
   };
