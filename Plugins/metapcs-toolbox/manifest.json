@@ -35,14 +35,16 @@
     "https://help.metapcs.com/*"
   ],
   "optional_host_permissions": [
-    "https://*/*"
+    "https://*/*",
+    "https://workmate.apps.prod.teifi.dev/*"
   ],
   "content_scripts": [
     {
       "matches": [
         "https://admin.shopify.com/*",
         "https://*.gorgias.com/*",
-        "https://*.workmatepos.co/*"
+        "https://*.workmatepos.co/*",
+        "https://workmate.apps.prod.teifi.dev/*"
       ],
       "js": ["content/linkify.js"],
       "css": ["content/linkify.css"],

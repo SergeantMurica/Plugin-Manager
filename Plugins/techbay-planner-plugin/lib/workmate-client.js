@@ -6,8 +6,11 @@ const contentFile = decodeURIComponent(
 const dailyUpdateFile = contentFile.replace(/content\.js$/, "lib/daily-update.js");
 
 export async function requestWorkMateAccess() {
-  if (!await chrome.permissions.request({ origins: ["https://app.workmatepos.co/*"] }))
-    throw new Error("Allow access to app.workmatepos.co to read or fill the embedded Work Mate page.");
+  if (!await chrome.permissions.request({ origins: [
+    "https://app.workmatepos.co/*",
+    "https://workmate.apps.prod.teifi.dev/*",
+  ] }))
+    throw new Error("Allow access to workmate.apps.prod.teifi.dev and app.workmatepos.co to read or fill the embedded Work Mate page.");
 }
 
 export async function readFrames(tabId) {

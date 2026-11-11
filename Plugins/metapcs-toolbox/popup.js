@@ -863,11 +863,16 @@ function renderSettings() {
  * cannot reach.
  *
  * Rather than hardcode a guess at that domain, the content script notes the
- * iframe origins it sees on Shopify admin, and this offers them here for
- * one-click enabling. Granting is a real Chrome permission prompt, so nothing
- * is enabled behind the user's back.
+ * iframe origins it sees on Shopify admin, and this offers them here alongside
+ * the current and legacy Work Mate hosts for one-click enabling. Granting is a
+ * real Chrome permission prompt, so nothing is enabled behind the user's back.
  */
 const BUILT_IN_SITES = ['https://admin.shopify.com', 'https://*.gorgias.com'];
+const WORKMATE_SITES = ['https://workmate.apps.prod.teifi.dev', 'https://app.workmatepos.co'];
+
+function contentPath(file) {
+  return decodeURIComponent(new URL(`content/${file}`, import.meta.url).pathname).replace(/^\/+/, '');
+}
 
 function scriptIdFor(origin) {
   return `so-links-${origin.replace(/[^a-z0-9]+/gi, '-')}`;
@@ -894,8 +899,8 @@ async function enableSite(origin) {
     await chrome.scripting.registerContentScripts([{
       id,
       matches: [pattern],
-      js: ['content/linkify.js'],
-      css: ['content/linkify.css'],
+      js: [contentPath('linkify.js')],
+      css: [contentPath('linkify.css')],
       allFrames: true,
       runAt: 'document_idle',
     }]);
@@ -944,15 +949,15 @@ async function renderSites() {
   }
 
   const { seenFrames } = await chrome.storage.local.get('seenFrames');
-  const frames = (seenFrames || []).filter((o) => !o.includes('shopify.com'));
-  if (!frames.length) return;
+  const frames = [...new Set([...WORKMATE_SITES, ...(seenFrames || [])])]
+    .filter((o) => !o.includes('shopify.com'));
 
   const granted = await grantedOrigins();
   const isOn = (origin) => granted.some((g) => g === `${origin}/*` || g === origin);
 
   const extraNote = document.createElement('p');
   extraNote.className = 'site-note';
-  extraNote.textContent = 'Embedded apps seen inside Shopify admin:';
+  extraNote.textContent = 'Work Mate and embedded apps seen inside Shopify admin (enable, then reload Shopify):';
   box.appendChild(extraNote);
 
   for (const origin of frames) {

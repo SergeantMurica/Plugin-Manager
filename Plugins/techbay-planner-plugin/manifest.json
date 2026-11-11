@@ -12,7 +12,7 @@
     "tabs"
   ],
   "host_permissions": ["https://admin.shopify.com/*", "https://dash.metapcs.com/*", "https://metapcs-platform.web.app/*"],
-  "optional_host_permissions": ["https://app.workmatepos.co/*"],
+  "optional_host_permissions": ["https://app.workmatepos.co/*", "https://workmate.apps.prod.teifi.dev/*"],
   "action": {
     "default_title": "Work Mate Assistant"
   },
@@ -23,7 +23,7 @@
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://admin.shopify.com/*", "https://app.workmatepos.co/*"],
+      "matches": ["https://admin.shopify.com/*", "https://app.workmatepos.co/*", "https://workmate.apps.prod.teifi.dev/*"],
       "js": ["lib/daily-update.js", "content.js"],
       "run_at": "document_idle",
       "all_frames": true
