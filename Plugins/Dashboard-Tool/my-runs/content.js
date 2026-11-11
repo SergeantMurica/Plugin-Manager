@@ -36,7 +36,7 @@
       });
       const event = eventIndex < 0 ? null : testEvents.splice(eventIndex, 1)[0];
       const data = event ? model.eventData(event.querySelector(":scope > div").textContent) : {};
-      for (const field of ["failures", "warnings"]) {
+      for (const field of ["failures", "warnings", "stages"]) {
         if (data[field] !== undefined && (!Array.isArray(data[field]) || data[field].some((value) => typeof value !== "string"))) {
           throw new Error(`Could not read ${field} for ${test}. Review it on Dash.`);
         }
@@ -45,7 +45,8 @@
         order, test, when, result,
         duration: model.duration(data.started, data.ended),
         fault: !!item.querySelector('[data-myruns="fault"]'),
-        failures: data.failures, warnings: data.warnings,
+        failures: data.failures, warnings: data.warnings, stages: data.stages,
+        started: data.started, ended: data.ended,
       };
     });
     const initials = /(?:^|·)\s*tech\s+([^·]+)/.exec(visit.querySelector('[data-myruns="visit-line"]')?.textContent || "")?.[1]?.trim() || "";
@@ -107,6 +108,13 @@
     initials.maxLength = 12;
     const runList = element("fieldset");
     runList.append(element("legend", "Include runs"));
+    const dateSelection = element("label", "Select runs by test date");
+    const testDate = element("select");
+    dateSelection.append(testDate);
+    const peaksTitle = element("h3", "QC maximum readings");
+    const peaksHint = element("p", "Maximum recorded values across selected runs and per run. Values may come from different stages. Open the SO# visit for full readings.");
+    const peaks = element("div", "", "run-notes-peaks");
+    peaks.setAttribute("aria-live", "polite");
     const preview = element("textarea");
     preview.rows = 15;
     preview.spellcheck = false;
@@ -122,7 +130,7 @@
     toolbar.append(searchForm, fields);
     const layout = element("div", "", "run-notes-layout");
     const selection = element("div", "", "run-notes-selection");
-    selection.append(runList);
+    selection.append(dateSelection, runList, peaksTitle, peaksHint, peaks);
     const editor = element("div", "", "run-notes-editor");
     editor.append(actions, previewLabel);
     layout.append(selection, editor);
@@ -175,14 +183,48 @@
       save();
     }
 
+    function updatePeaks() {
+      const selected = [...runList.querySelectorAll("input:checked")].map((input) => source.runs[Number(input.value)]);
+      peaks.replaceChildren();
+      if (!selected.length) {
+        peaks.textContent = "Select runs to see maximum readings.";
+        return;
+      }
+      const total = element("p");
+      total.append(element("strong", "Selected runs"), document.createElement("br"),
+        document.createTextNode(model.formatPeaks(model.peakReadings(selected.flatMap((run) => run.stages || [])))));
+      peaks.append(total);
+      const missing = selected.filter((run) => {
+        const readings = model.peakReadings(run.stages);
+        return !Object.keys(readings.cpu).length && !Object.keys(readings.gpu).length;
+      }).length;
+      if (missing) peaks.append(element("p", `${missing} of ${selected.length} selected run(s) have no recorded CPU or GPU readings. Maxima include available readings only.`));
+      for (const run of selected) {
+        const item = element("p");
+        item.append(element("strong", `${run.when} - ${run.test}`), document.createElement("br"),
+          document.createTextNode(model.formatPeaks(model.peakReadings(run.stages))));
+        peaks.append(item);
+      }
+    }
+
     async function selectOrder() {
       await save();
       activeOrder = order.value;
       loading = true;
       order.disabled = generate.disabled = copy.disabled = true;
-      fields.inert = runList.inert = previewLabel.inert = true;
+      fields.inert = selection.inert = previewLabel.inert = true;
       panel.setAttribute("aria-busy", "true");
       runList.replaceChildren(element("legend", "Include runs"));
+      const dates = [...new Set(source.runs.filter((run) => run.order === activeOrder).map(model.runDate).filter(Boolean))];
+      testDate.replaceChildren();
+      const allDates = element("option", "All dates");
+      allDates.value = "";
+      testDate.append(allDates);
+      for (const value of dates) {
+        const option = element("option", value);
+        option.value = value;
+        testDate.append(option);
+      }
       source.runs.forEach((run, index) => {
         if (run.order !== activeOrder) return;
         const label = element("label");
@@ -190,10 +232,14 @@
         checkbox.type = "checkbox";
         checkbox.value = String(index);
         checkbox.checked = true;
-        checkbox.addEventListener("change", () => message("Run selection changed. Regenerate notes to update the preview."));
+        checkbox.addEventListener("change", () => {
+          updatePeaks();
+          message("Run selection changed. Regenerate notes to update the preview.");
+        });
         label.append(checkbox, document.createTextNode(`${run.when} - ${run.test}: ${model.resultLabel(run.result)}${run.duration && run.duration !== "—" ? ` (${run.duration})` : ""}${run.fault ? " - FAULT ON RECORD" : ""}`));
         runList.append(label);
       });
+      updatePeaks();
       try {
         const draft = (await chrome.storage.local.get(key()))[key()];
         preview.value = draft?.preview || "";
@@ -212,12 +258,19 @@
       } finally {
         loading = false;
         order.disabled = false;
-        fields.inert = runList.inert = previewLabel.inert = false;
+        fields.inert = selection.inert = previewLabel.inert = false;
         panel.setAttribute("aria-busy", "false");
       }
     }
 
     order.addEventListener("change", () => { selectOrder().catch((error) => message(error.message, true)); });
+    testDate.addEventListener("change", () => {
+      for (const checkbox of runList.querySelectorAll("input[type='checkbox']")) {
+        checkbox.checked = !testDate.value || model.runDate(source.runs[Number(checkbox.value)]) === testDate.value;
+      }
+      updatePeaks();
+      message("Run selection changed. Regenerate notes to update the preview.");
+    });
     for (const input of [date, initials, preview]) input.addEventListener("input", () => {
       message(input === preview ? "Preview edited. Copy notes copies this exact text." : "Fields changed. Regenerate notes to update the preview.");
       save();
@@ -272,6 +325,8 @@
         activeOrder = "";
         order.replaceChildren();
         runList.replaceChildren(element("legend", "Include runs"));
+        testDate.replaceChildren();
+        peaks.replaceChildren();
         preview.value = "";
         panel.hidden = false;
         tab.setAttribute("aria-expanded", "true");

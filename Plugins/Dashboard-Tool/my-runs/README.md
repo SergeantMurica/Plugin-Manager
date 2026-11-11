@@ -11,6 +11,10 @@ and refresh open Dash pages after installing this change.
    visit's full history with the notes tab selected, even if it is not in the
    loaded list. Dash handles access and missing work orders. Drafts are saved
    before navigating. Enter the note date and initials and choose runs to include.
+   Use **Select runs by test date** to select all runs on a date, or all dates;
+   individual checkboxes can then be adjusted. Undated runs are included only
+   when all dates are selected or their checkboxes are checked manually. The
+   note date is separate and is not changed by the test-date selector.
 3. Make any additional edits directly in the generated notes preview.
 4. Select **Regenerate notes** after changing fields or run selection. Regeneration
    replaces preview edits after confirmation.
@@ -23,6 +27,15 @@ a larger notes editor with copy/regenerate controls above it. Smaller screens
 stack these sections without horizontal scrolling.
 Run selection and generated notes list tests oldest to newest by run timestamp,
 with undated runs last.
+The **QC maximum readings** section shows CPU and GPU temperature, power, and
+frequency maxima for the selected runs together and for each run. Each maximum
+is independent and may have occurred in a different stage. Frequencies are
+shown in MHz; an average is not treated as a maximum. Unavailable measurements
+are marked as not recorded. Full stage readings are available on an SO# visit;
+the Runs table alone does not include them. These readings are for manually
+completing the QC checklist and are not added to customer-facing notes.
+When an event has a recorded end date it is used for test-date selection;
+otherwise the date shown by Dash is used, without guessing a missing year.
 Notes are customer-facing: warnings are short plain-language summaries, with
 duplicate summaries combined within each run. Unrecognized warning details are
 omitted without changing the recorded test result or adding a generic review notice.

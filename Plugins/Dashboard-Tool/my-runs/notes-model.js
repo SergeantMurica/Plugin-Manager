@@ -44,6 +44,45 @@
       .map(({ run }) => run);
   }
 
+  function runDate(run) {
+    const recorded = /^(\d{4}-\d{2}-\d{2})/.exec(run.ended || run.started || "");
+    if (recorded) return recorded[1];
+    const displayed = clean(run.when).replace(/,\s*\d{1,2}:\d{2}\s*(?:AM|PM).*$/i, "").trim();
+    return displayed && displayed !== clean(run.when) ? displayed : "";
+  }
+
+  function peakReadings(stages) {
+    const peaks = { cpu: {}, gpu: {} };
+    const update = (component, metric, value) => {
+      if (Number.isFinite(value)) peaks[component][metric] = Math.max(peaks[component][metric] ?? -Infinity, value);
+    };
+    for (const stage of stages || []) {
+      for (const match of stage.matchAll(/\b(CPU|GPU) peak\s+([^·]*)/gi)) {
+        const component = match[1].toLowerCase();
+        const reading = match[2];
+        const temperature = /(\d+(?:\.\d+)?)\s*°C\b/i.exec(reading);
+        const watts = /(\d+(?:\.\d+)?)\s*W\b/i.exec(reading);
+        const averageWithPeak = /(\d+(?:\.\d+)?)\s*(GHz|MHz)\s+avg\s*\(\s*(\d+(?:\.\d+)?)\s*peak\s*\)/i.exec(reading);
+        const peakFrequency = /(\d+(?:\.\d+)?)\s*(GHz|MHz)(?:\s+peak)?\b/i.exec(reading);
+        if (temperature) update(component, "temperature", Number(temperature[1]));
+        if (watts) update(component, "watts", Number(watts[1]));
+        if (averageWithPeak) {
+          update(component, "mhz", Number(averageWithPeak[3]) * (averageWithPeak[2].toLowerCase() === "ghz" ? 1000 : 1));
+        } else if (peakFrequency && !/\bavg\b/i.test(reading)) {
+          update(component, "mhz", Number(peakFrequency[1]) * (peakFrequency[2].toLowerCase() === "ghz" ? 1000 : 1));
+        }
+      }
+    }
+    return peaks;
+  }
+
+  function formatPeaks(peaks) {
+    return ["cpu", "gpu"].map((component) => {
+      const { temperature, watts, mhz } = peaks[component];
+      return `${component.toUpperCase()}: ${temperature === undefined ? "temperature not recorded" : `${temperature} °C`}, ${watts === undefined ? "power not recorded" : `${watts} W`}, ${mhz === undefined ? "frequency not recorded" : `${mhz} MHz`}`;
+    }).join("\n");
+  }
+
   function customerWarning(value) {
     const text = clean(value);
     if (!text) return "";
@@ -85,7 +124,7 @@
     return lines.join("\n");
   }
 
-  const model = { clean, resultPattern, resultLabel, duration, fromCells, eventData, sortRuns, customerWarning, orderSearchPath, generate };
+  const model = { clean, resultPattern, resultLabel, duration, fromCells, eventData, sortRuns, runDate, peakReadings, formatPeaks, customerWarning, orderSearchPath, generate };
   if (typeof module !== "undefined" && module.exports) module.exports = model;
   else globalThis.dashboardRunNotes = model;
 })();

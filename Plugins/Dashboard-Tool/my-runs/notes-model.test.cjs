@@ -142,3 +142,40 @@ test("parses event data and computes actual elapsed time, not an estimate", () =
   assert.equal(model.duration("", ""), "");
   assert.equal(model.duration("2026-11-02", "2026-11-01"), "");
 });
+
+test("finds independent CPU and GPU maximum readings across stages and selected runs", () => {
+  const stages = [
+    "CPU: Linpack: pass (2 min · CPU peak 90 °C, 289 W, 4.28 GHz avg (4.93 peak) · RAM used up to 84%)",
+    "CPU: Extreme: pass (2 min · CPU peak 93 °C, 291 W, 4.78 GHz avg (4.88 peak))",
+    "Core cycling: pass (2 min · CPU peak 82 °C, 85 W, 3.35 GHz peak)",
+    "Power transients: pass (49 s · CPU peak 90 °C, 254 W, 3.89 GHz avg (4.60 peak) · GPU peak 75 °C, 284 W, 2865 MHz · GPU fans peak 2,137 rpm)",
+    "GPU: full load: pass (2 min · GPU peak 76 °C, 285 W, 2895 MHz · GPU fans peak 2,444 rpm)",
+    "Video engines: pass (4 s)",
+  ];
+  assert.deepEqual(model.peakReadings(stages), {
+    cpu: { temperature: 93, watts: 291, mhz: 4930 },
+    gpu: { temperature: 76, watts: 285, mhz: 2895 },
+  });
+  assert.equal(model.formatPeaks(model.peakReadings(stages)),
+    "CPU: 93 °C, 291 W, 4930 MHz\nGPU: 76 °C, 285 W, 2895 MHz");
+  assert.deepEqual(model.peakReadings(stages.slice(0, 3)).gpu, {});
+});
+
+test("does not mistake average frequency or fan speed for a peak, or invent missing readings", () => {
+  const readings = model.peakReadings([
+    "CPU: pass (CPU peak 70 °C, 100 W, 4.25 GHz avg · GPU fans peak 3,000 rpm)",
+    "GPU: pass (GPU peak 55 °C · GPU fans peak 2,000 rpm)",
+  ]);
+  assert.deepEqual(readings, { cpu: { temperature: 70, watts: 100 }, gpu: { temperature: 55 } });
+  assert.equal(model.formatPeaks(readings),
+    "CPU: 70 °C, 100 W, frequency not recorded\nGPU: 55 °C, power not recorded, frequency not recorded");
+  assert.equal(model.formatPeaks(model.peakReadings()),
+    "CPU: temperature not recorded, power not recorded, frequency not recorded\nGPU: temperature not recorded, power not recorded, frequency not recorded");
+});
+
+test("uses recorded test dates and falls back to the date displayed in the runs table", () => {
+  assert.equal(model.runDate({ ended: "2026-11-09 00:01:00", started: "2026-11-08 23:59:00", when: "Nov 9, 12:01 AM" }), "2026-11-09");
+  assert.equal(model.runDate({ started: "2026-11-08 23:59:00" }), "2026-11-08");
+  assert.equal(model.runDate({ when: "Nov 9, 4:57 PM" }), "Nov 9");
+  assert.equal(model.runDate({ when: "unknown" }), "");
+});
