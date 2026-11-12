@@ -177,6 +177,12 @@
         <select id="type" class="chip" aria-label="Lead type"></select>
         <button type="button" id="readPage" class="ghost small" title="Reload details from the open Dash lead">Read page</button>
       </div>
+      <p class="hint lead-activity" id="leadActivity" data-for="financing abandoned helpdesk other" role="status" hidden></p>
+      <div class="actions lead-actions" data-for="financing abandoned helpdesk other">
+        <button type="button" id="markCalled" class="ghost">Mark called</button>
+        <button type="button" id="markEmailed" class="ghost">Mark emailed</button>
+        <button type="button" id="unclaimLead" class="ghost" title="Remove your claim and return this lead to Not contacted">Unclaim · Not contacted</button>
+      </div>
       <div class="row">
         <label class="field">
           <span>Customer</span>

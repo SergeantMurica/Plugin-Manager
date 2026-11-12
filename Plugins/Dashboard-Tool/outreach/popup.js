@@ -18,6 +18,7 @@ const LEADS_KEY = "plLeads";
 const CURRENT_KEY = "plCurrent";
 const SETTINGS_KEY = "plSettings";
 const REMOVED_KEY = "plLeadRemoved";
+const LEAD_CACHE_KEY = "plLeadCloud";
 // Shared with the Warranty Upsell Tracker when both run inside Plugin Manager (same extension storage).
 const WT_AUTH_KEY = "wtAuth";
 const WT_CACHE_KEY = "wtContacts";
@@ -53,6 +54,10 @@ const els = Object.fromEntries(
     "claim",
     "lead",
     "leadId",
+    "leadActivity",
+    "markCalled",
+    "markEmailed",
+    "unclaimLead",
     "type",
     "readPage",
     "customer",
@@ -84,6 +89,8 @@ let page = null; // last scrape from Dash
 let settings = { rep: "", callback: "" };
 let wtAuth = null;
 let wtItems = {};
+let cloudLeads = {};
+let leadActionPending = false;
 let warrantyStatusOrder = null;
 let warrantySavedStatus = "texted";
 let hasWarrantyTool = false;
@@ -329,12 +336,110 @@ function applyTypeVisibility() {
 function renderAll() {
   renderHeader();
   renderWarranty();
+  renderLeadActivity();
   renderScriptTabs();
   renderScript();
 }
 
 function renderHeader() {
   els.repLabel.textContent = repName() || "set your name ↓";
+}
+
+function currentCloudLeadId() {
+  return current?.type !== "warranty" && /^WL-\d+$/.test(current?.id || "")
+    ? current.id
+    : "";
+}
+
+function renderLeadActivity() {
+  const id = currentCloudLeadId();
+  const record = cloudLeads[id];
+  if (!id) {
+    els.leadActivity.textContent = "Open a Dash lead to track contact activity.";
+  } else if (!wtAuth) {
+    els.leadActivity.textContent = "Sign in to track contact activity.";
+  } else if (!record) {
+    els.leadActivity.textContent = "Not contacted. Mark a call or email to claim this lead.";
+  } else {
+    const activity = [];
+    for (const [step, label] of [["called", "Called"], ["emailed", "Emailed"]]) {
+      if (record.steps?.[step]) {
+        activity.push(`${label} ${new Date(record.steps[step]).toLocaleString()}`);
+      }
+    }
+    const owner = record.by ? `Claimed by ${titleCase(record.by)}` : "Claimed";
+    els.leadActivity.textContent = [owner, ...activity].join(" · ");
+  }
+  els.leadActivity.hidden = !current || current.type === "warranty";
+  const eligible = !!id && !!wtAuth && !leadActionPending;
+  const owned = !!record && record.uid === wtAuth?.uid;
+  els.markCalled.disabled = !eligible || (!!record && !owned);
+  els.markEmailed.disabled = !eligible || (!!record && !owned);
+  els.unclaimLead.disabled = !eligible || !owned;
+}
+
+async function refreshDashboardLeads() {
+  const result = await send("dashboardLeadRefresh");
+  if (!result.ok) throw new Error(result.error || "Couldn't refresh lead activity.");
+  cloudLeads = (await chrome.storage.local.get(LEAD_CACHE_KEY))[LEAD_CACHE_KEY]?.items || {};
+  renderLeadActivity();
+}
+
+async function markLeadStep(step) {
+  const id = currentCloudLeadId();
+  if (!id || !wtAuth) return;
+  leadActionPending = true;
+  renderLeadActivity();
+  try {
+    await refreshDashboardLeads();
+    const previous = cloudLeads[id];
+    if (previous && previous.uid !== wtAuth.uid) {
+      throw new Error(`This lead is claimed by ${titleCase(previous.by)}. Ask them to unclaim it before recording activity.`);
+    }
+    const result = await send("dashboardLeadSave", {
+      id,
+      type: current.type,
+      status: previous?.status && previous.status !== "new" ? previous.status : "attempted",
+      ts: previous?.ts || Date.now(),
+      steps: { ...previous?.steps, [step]: Date.now() },
+    });
+    if (!result.ok) throw new Error(result.error || "Couldn't save contact activity.");
+    cloudLeads = (await chrome.storage.local.get(LEAD_CACHE_KEY))[LEAD_CACHE_KEY]?.items || {};
+    showError("");
+  } catch (error) {
+    showError(error.message);
+  } finally {
+    leadActionPending = false;
+    renderLeadActivity();
+  }
+}
+
+async function unclaimLead() {
+  const id = currentCloudLeadId();
+  if (!id || !wtAuth) return;
+  leadActionPending = true;
+  renderLeadActivity();
+  try {
+    await refreshDashboardLeads();
+    const record = cloudLeads[id];
+    if (!record) {
+      showError("");
+      return;
+    }
+    if (record.uid !== wtAuth.uid) {
+      throw new Error(`This lead is claimed by ${titleCase(record.by)}. Only its owner can unclaim it.`);
+    }
+    if (!confirm(`Unclaim ${id} and return it to Not contacted?`)) return;
+    const result = await send("dashboardLeadRemove", { id });
+    if (!result.ok) throw new Error(result.error || "Couldn't unclaim this lead.");
+    cloudLeads = (await chrome.storage.local.get(LEAD_CACHE_KEY))[LEAD_CACHE_KEY]?.items || {};
+    showError("");
+  } catch (error) {
+    showError(error.message);
+  } finally {
+    leadActionPending = false;
+    renderLeadActivity();
+  }
 }
 
 
@@ -705,6 +810,9 @@ els.readPage.addEventListener("click", async () => {
     return showError("Open a lead on the Dash Pound list first.");
   if (show(fromPage(page, true), true)) save(true);
 });
+els.markCalled.addEventListener("click", () => markLeadStep("called"));
+els.markEmailed.addEventListener("click", () => markLeadStep("emailed"));
+els.unclaimLead.addEventListener("click", unclaimLead);
 els.wtLog.addEventListener("click", logWarranty);
 els.wtOpen.addEventListener("click", openWarranty);
 for (const k of ["rep", "callback"]) {
@@ -754,6 +862,14 @@ chrome.storage.onChanged.addListener((c, area) => {
     if (c[WT_CACHE_KEY]) wtItems = c[WT_CACHE_KEY].newValue?.items || {};
     renderHeader();
     renderWarranty();
+    renderLeadActivity();
+    if (c[WT_AUTH_KEY]?.newValue && currentCloudLeadId()) {
+      refreshDashboardLeads().catch((error) => showError(error.message));
+    }
+  }
+  if (c[LEAD_CACHE_KEY]) {
+    cloudLeads = c[LEAD_CACHE_KEY].newValue?.items || {};
+    renderLeadActivity();
   }
 });
 
@@ -773,6 +889,7 @@ export const ready = (async () => {
     SETTINGS_KEY,
     WT_AUTH_KEY,
     WT_CACHE_KEY,
+    LEAD_CACHE_KEY,
     REMOVED_KEY,
     SHOPIFY_PAGE_KEY,
   ]);
@@ -781,6 +898,7 @@ export const ready = (async () => {
   els.callback.value = settings.callback;
   wtAuth = d[WT_AUTH_KEY] || null;
   wtItems = d[WT_CACHE_KEY]?.items || {};
+  cloudLeads = d[LEAD_CACHE_KEY]?.items || {};
   page = d[PAGE_KEY] || null;
   removedLeads = new Set(d[REMOVED_KEY] || []);
   if (unified) {
@@ -827,5 +945,8 @@ export const ready = (async () => {
         showError(`Automatic Dash reading failed. Check Plugin Manager's site access for Dash in chrome://extensions: ${error.message}`);
       }
     }
+  }
+  if (wtAuth && currentCloudLeadId()) {
+    refreshDashboardLeads().catch((error) => showError(error.message));
   }
 })();

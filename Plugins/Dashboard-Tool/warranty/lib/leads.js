@@ -73,9 +73,20 @@
         const url = `${collection()}/${encodeURIComponent(change.id)}`;
         if (change.remove) {
           try {
-            await api(url, { method: "DELETE" });
+            const query = change.expect
+              ? `?${new URLSearchParams({ "currentDocument.updateTime": change.expect })}`
+              : "";
+            await api(`${url}${query}`, { method: "DELETE" });
           } catch (error) {
-            if (error.code !== "NOT_FOUND") throw error;
+            if (error.code === "NOT_FOUND") {
+              // The lead was already unclaimed.
+            } else if (["ALREADY_EXISTS", "FAILED_PRECONDITION"].includes(error.code)) {
+              delete pending[pendingId];
+              await chrome.storage.local.set({ [PENDING]: pending });
+              throw new Error("A teammate changed this lead. Review its refreshed activity, then unclaim it again.");
+            } else {
+              throw error;
+            }
           }
           delete items[change.id];
         } else {
@@ -83,7 +94,15 @@
           const query = new URLSearchParams(change.expect
             ? { "currentDocument.updateTime": change.expect }
             : { "currentDocument.exists": "false" });
-          const doc = await api(`${url}?${query}`, { method: "PATCH", body: JSON.stringify(encode(change.record)) });
+          let doc;
+          try {
+            doc = await api(`${url}?${query}`, { method: "PATCH", body: JSON.stringify(encode(change.record)) });
+          } catch (error) {
+            if (!["ALREADY_EXISTS", "FAILED_PRECONDITION"].includes(error.code)) throw error;
+            delete pending[pendingId];
+            await chrome.storage.local.set({ [PENDING]: pending });
+            throw new Error("A teammate changed this lead. Refresh the activity, then save your change again.");
+          }
           items[change.id] = decode(doc);
         }
         delete pending[pendingId];

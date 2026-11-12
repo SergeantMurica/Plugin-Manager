@@ -44,6 +44,9 @@ button:disabled, select:disabled { cursor: default; opacity: 0.55; }
 .lead-top { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .lead-top .tag { border-radius: 5px; padding: 3px 8px; }
 .lead-top .chip { flex: 1; min-width: 0; }
+.lead-activity { margin: 0; }
+.lead-actions { align-items: center; }
+.lead-actions button { min-height: 32px; }
 .field > span { color: var(--muted); font-size: 12px; }
 .field > em, .field em { font-size: 11px; }
 .field:has(#phone) { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 8px; }
