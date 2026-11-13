@@ -8,29 +8,35 @@ const PRIVATE_KEY = "wtPrivate"; // customer name / phone / email / price: store
 const PRIVATE_FIELDS = ["phone", "email", "customer", "systemPrice", "watercooled", "systems"];
 const STATUSES = [
   "texted",
+  "called",
+  "emailed",
   "agreed",
   "declined",
   "paid",
   "none",
   "wrong_number_error",
   "already_has",
+  "not_contacted",
 ];
 const STATUS_LABEL = {
   texted: "Texted",
+  called: "Called",
+  emailed: "Emailed",
   agreed: "Agreed",
   declined: "Declined",
   none: "No answer",
   paid: "Paid",
   wrong_number_error: "Wrong number/error",
   already_has: "Already Has",
+  not_contacted: "Not contacted",
 };
 // A/B text-script variants (ids match lib/scripts.js).
 // Keep in sync with lib/scripts.js. Retired ids (v7) stay out so they are never assigned.
 const VARIANT_IDS = ["v1", "v2", "v3", "v4", "v5", "v6", "v8", "v9", "v10"];
 const randomVariant = () =>
   VARIANT_IDS[Math.floor(Math.random() * VARIANT_IDS.length)];
-// Bumped when cached records change shape (v2: updateTime, v3: legacy "replied" folded into texted, v4: A/B variant).
-const CACHE_VERSION = 4;
+// v5 refreshes caches so newly recognized statuses are decoded from Firestore.
+const CACHE_VERSION = 5;
 const CONFLICT_CODES = ["ALREADY_EXISTS", "FAILED_PRECONDITION"];
 
 const DOCS = () =>
@@ -473,7 +479,9 @@ async function upsert(input) {
   if (!a) throw new Error("Not signed in.");
   const id = orderKey(input.order);
   if (!id) throw new Error("Order number is required.");
-  const status = STATUSES.includes(input.status) ? input.status : "texted";
+  if (input.status !== undefined && (!STATUSES.includes(input.status) || input.status === "not_contacted"))
+    throw new Error("Choose a valid contact status.");
+  const status = input.status || "texted";
   const cached = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY]
     ?.items?.[id];
   // Callers pass what the user was looking at; fall back to the cache when they don't.
@@ -521,6 +529,7 @@ async function upsert(input) {
     by: owner.by,
     uid: owner.uid,
     ts: owner.ts,
+    hidden: false,
     updatedAt: now,
   };
   try {
@@ -620,6 +629,31 @@ async function remove(id) {
   });
 }
 
+async function unclaim({ id, expect }) {
+  const a = await getAuth();
+  if (!a) throw new Error("Not signed in.");
+  const cached = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY]?.items?.[id];
+  if (!cached) throw new Error("Order not found. Refresh and try again.");
+  const cur = !expect || cached.updateTime !== expect ? await fetchOne(id) : cached;
+  if (expect && cur.updateTime !== expect) throw await conflictError(cur, a);
+  if (!cur.updateTime) throw new Error("Cannot verify this order's latest version. Refresh and try again.");
+  if (cur.status === "not_contacted") throw new Error("This order is already unclaimed.");
+  if (cur.uid !== a.uid) throw new Error(`Only ${cur.by || "the owner"} can unclaim this order.`);
+  const contact = { ...cur, status: "not_contacted", hidden: true, updatedAt: Date.now() };
+  try {
+    contact.updateTime = await writeDoc(contact, {
+      fields: ["status", "hidden", "updatedAt"],
+      expect: cur.updateTime,
+    });
+  } catch (error) {
+    if (!CONFLICT_CODES.includes(error.code)) throw error;
+    throw await conflictError(await fetchOne(id), a);
+  }
+  await patchCache((items) => {
+    items[id] = contact;
+  });
+}
+
 // Admin only: deletes phone/email/customer/price from every Firestore document.
 async function scrub() {
   const a = await getAuth();
@@ -666,6 +700,7 @@ const handlers = {
   enrich,
   openOrder,
   remove: ({ id }) => remove(id),
+  unclaim,
   refresh: (p) => refreshContacts(!!p?.force),
 };
 

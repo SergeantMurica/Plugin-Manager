@@ -20,6 +20,8 @@ const PRIVATE_KEY = "wtPrivate";
 let dashLeads = {};
 const STATUSES = [
   "texted",
+  "called",
+  "emailed",
   "agreed",
   "declined",
   "paid",
@@ -29,6 +31,8 @@ const STATUSES = [
 ];
 const STATUS_LABEL = {
   texted: "Texted",
+  called: "Called",
+  emailed: "Emailed",
   agreed: "Agreed",
   declined: "Declined",
   none: "No answer",
@@ -345,9 +349,9 @@ function findDuplicates() {
   return {
     byPhone:
       p.length >= 7
-        ? entries.find((e) => digits(e.phone) === p && e.id !== k)
+        ? entries.find((e) => e.status !== "not_contacted" && digits(e.phone) === p && e.id !== k)
         : null,
-    byOrder: k ? entries.find((e) => e.id === k) : null,
+    byOrder: k ? entries.find((e) => e.id === k && e.status !== "not_contacted") : null,
   };
 }
 function updateHint() {
@@ -563,7 +567,27 @@ function render() {
       o.selected = s === e.status;
       chip.append(o);
     }
+    if (e.uid === auth?.uid) {
+      const option = document.createElement("option");
+      option.value = "not_contacted";
+      option.textContent = "Unclaim · Not contacted";
+      chip.append(option);
+    }
     chip.addEventListener("change", async () => {
+      if (chip.value === "not_contacted") {
+        if (!confirm(`Unclaim ${e.order} and mark it Not contacted? It will be removed from the team log.`)) {
+          chip.value = e.status;
+          return;
+        }
+        chip.disabled = true;
+        const r = await send("unclaim", { id: e.id, expect: e.updateTime || "" });
+        if (!r.ok) {
+          showError(els.error, r.error);
+          chip.value = e.status;
+          chip.disabled = false;
+        }
+        return;
+      }
       const stage = stageFor(chip.value);
       // Copy the follow-up while the change event still counts as a user gesture.
       if (stage !== "pitch")
@@ -798,6 +822,7 @@ els.form.addEventListener("submit", async (ev) => {
     return;
   }
   const { byOrder } = findDuplicates();
+  const savedOrder = entries.find((e) => e.id === orderKey(els.order.value));
   if (
     byOrder &&
     !confirm(
@@ -816,7 +841,7 @@ els.form.addEventListener("submit", async (ev) => {
     systemPrice: els.systemPrice.value.trim(),
     watercooled: els.watercooled.checked ? "yes" : "",
     status: "texted",
-    expect: byOrder ? byOrder.updateTime || "" : null,
+    expect: savedOrder ? savedOrder.updateTime || "" : null,
   });
   if (!r.ok) {
     showError(els.error, r.error);

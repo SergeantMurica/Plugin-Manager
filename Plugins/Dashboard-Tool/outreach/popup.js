@@ -28,6 +28,8 @@ let shopifyPage = null;
 
 const WT_STATUSES = [
   ["texted", "Texted"],
+  ["called", "Called"],
+  ["emailed", "Emailed"],
   ["agreed", "Agreed"],
   ["declined", "Declined"],
   ["paid", "Paid"],
@@ -472,7 +474,7 @@ function renderWarranty() {
       tone = "warn";
     }
   } else
-    msg = `${key} isn't in the Warranty Tool yet. Log it after texting so nobody contacts them twice.`;
+    msg = `${key} isn't in the Warranty Tool yet. Log it after contacting the customer so nobody contacts them twice.`;
   els.wtHint.textContent = msg;
   els.wtHint.dataset.tone = tone;
   els.wtHint.hidden = !msg;

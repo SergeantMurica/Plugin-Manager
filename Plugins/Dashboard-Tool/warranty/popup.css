@@ -234,15 +234,12 @@ input.flag {
 }
 .tabs-status {
   display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
 }
-/* 4 tiles on the first row, 3 on the second, both rows full width. */
-.tabs-status .tab {
-  grid-column: span 3;
-}
+.tabs-status .tab,
 .tabs-status .tab:nth-child(n + 5) {
-  grid-column: span 4;
+  grid-column: auto;
 }
 .tab {
   --dot: var(--accent);

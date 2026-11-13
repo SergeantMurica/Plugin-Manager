@@ -13,6 +13,8 @@
 }
 .wt-badge:not([data-state="new"]) { border: 1px solid rgba(0, 0, 0, 0.25); color: #fff; }
 .wt-badge[data-state="texted"] { background: #1d4ed8; }
+.wt-badge[data-state="called"] { background: #1d4ed8; }
+.wt-badge[data-state="emailed"] { background: #6d28d9; }
 .wt-badge[data-state="agreed"] { background: #0e9f6e; }
 .wt-badge[data-state="paid"] { background: #15803d; }
 .wt-badge[data-state="declined"] { background: #374151; }
@@ -25,6 +27,8 @@
   position: fixed;
   z-index: 2147483647;
   min-width: 170px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
   padding: 6px;
   background: #fff;
   color: #111;

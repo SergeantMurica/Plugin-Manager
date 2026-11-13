@@ -8,6 +8,8 @@
   const PULL_KEY = "wtShopifyPull";
   const LABEL = {
     texted: "Texted",
+    called: "Called",
+    emailed: "Emailed",
     agreed: "Agreed",
     declined: "Declined",
     none: "No answer",
@@ -96,14 +98,15 @@
         } else el.insertAdjacentElement("afterend", b);
       }
       badgeTargets.set(b, el);
-      const state = c ? c.status : "new";
-      const text = pending.has(id) ? "Saving..." : !signedIn ? "Warranty: sign in" : c ? `${LABEL[c.status] || c.status}: ${c.by}` : "Not contacted";
+      const contacted = c && c.status !== "not_contacted";
+      const state = contacted ? c.status : "new";
+      const text = pending.has(id) ? "Saving..." : !signedIn ? "Warranty: sign in" : contacted ? `${LABEL[c.status] || c.status}: ${c.by}` : "Not contacted";
       if (b.dataset.state !== state) b.dataset.state = state;
       if (b.dataset.order !== order) b.dataset.order = order;
       if (b.textContent !== text) b.textContent = text;
       b.title = pending.has(id)
         ? "Saving this order. Other orders remain available."
-        : c ? `${c.by} · ${new Date(c.ts).toLocaleString()}${c.note ? "\n" + c.note : ""}`
+        : contacted ? `${c.by} · ${new Date(c.ts).toLocaleString()}${c.note ? "\n" + c.note : ""}`
           : "Click to log. You can log other orders while this one loads.";
       if (signedIn && !el.hasAttribute("href")) enrichFromPage(order);
     }
@@ -220,7 +223,7 @@
     try {
       const payload = { order, status, expect: seen ? seen.updateTime || "" : null };
       const fromList = el.hasAttribute("href");
-      const first = !seen;
+      const first = !seen || seen.status === "not_contacted";
       if (first && fromList) {
         const customer = rowCustomer(el);
         if (customer) payload.customer = customer;
@@ -238,11 +241,27 @@
       if (opened && !opened.ok)
         alert(opened.error || "Status saved, but the order could not be opened to read customer details.");
       if (!fromList) {
-        items[id] = { ...seen, ...payload, uid: seen?.uid || myUid };
+        items = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY]?.items || {};
         await enrichFromPage(order);
       }
     } catch (error) {
       alert(`Could not pull ${order}: ${error.message}`);
+    } finally {
+      pending.delete(id);
+      paint();
+    }
+  }
+
+  async function unclaim(order, seen) {
+    if (!confirm(`Unclaim ${order} and mark it Not contacted? It will be removed from the team log.`)) return;
+    closeMenu();
+    const id = orderKey(order);
+    if (pending.has(id)) return;
+    pending.add(id);
+    paint();
+    try {
+      const result = await send("unclaim", { id, expect: seen.updateTime || "" });
+      if (!result.ok) alert(result.error || "Could not unclaim this order.");
     } finally {
       pending.delete(id);
       paint();
@@ -266,11 +285,12 @@
     const order = badge.dataset.order;
     const target = badgeTargets.get(badge);
     const c = items[orderKey(order)];
+    const contacted = c && c.status !== "not_contacted";
     menu = document.createElement("div");
     menu.className = "wt-menu";
     const title = document.createElement("div");
     title.className = "wt-menu-title";
-    title.textContent = c ? `${order} — ${c.by}` : order;
+    title.textContent = contacted ? `${order} — ${c.by}` : order;
     menu.append(title);
     const add = (label, fn) => {
       const b = document.createElement("button");
@@ -280,8 +300,10 @@
       menu.append(b);
     };
     for (const s of Object.keys(LABEL)) {
-      if (!c || c.status !== s) add(c ? `Mark ${LABEL[s]}` : `Log as ${LABEL[s]}`, () => act(order, s, target, c));
+      if (!contacted || c.status !== s) add(contacted ? `Mark ${LABEL[s]}` : `Log as ${LABEL[s]}`, () => act(order, s, target, c));
     }
+    if (contacted && c.uid === myUid)
+      add("Unclaim · Not contacted", () => unclaim(order, c));
     document.body.append(menu);
     const r = badge.getBoundingClientRect();
     menu.style.top = `${Math.min(r.bottom + 4, innerHeight - menu.offsetHeight - 8)}px`;

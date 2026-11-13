@@ -32,15 +32,33 @@ export async function readFrames(tabId) {
 
 export async function fillOrder(tabId, url, values, allowEmpty = false) {
   const expected = orderContext(url);
-  const tab = await chrome.tabs.get(tabId);
-  if (!(expected?.number || expected?.isNew) || orderContext(tab.url)?.url !== expected.url)
+  if (!(expected?.number || expected?.isNew))
     throw new Error("The target tab is no longer on the selected work order.");
-  const frames = await readFrames(tabId);
-  const frame = frames.sort((a, b) => b.fieldCount - a.fieldCount)[0];
+  const deadline = Date.now() + 10000;
+  let frame;
+  let lastError;
+  const isExpectedTab = (tab) =>
+    orderContext(tab.url)?.url === expected.url &&
+    (!tab.pendingUrl || orderContext(tab.pendingUrl)?.url === expected.url);
+  do {
+    const tab = await chrome.tabs.get(tabId);
+    if (!isExpectedTab(tab))
+      throw new Error("The target tab is no longer on the selected work order.");
+    try {
+      const frames = await readFrames(tabId);
+      frame = frames.sort((a, b) => b.fieldCount - a.fieldCount)[0];
+      if (frame?.fieldCount) break;
+      lastError = null;
+    } catch (error) {
+      lastError = error;
+    }
+    if (Date.now() < deadline)
+      await new Promise((resolve) => setTimeout(resolve, 500));
+  } while (Date.now() < deadline);
   if (!frame?.fieldCount)
-    throw new Error("Work order fields are not ready. Open the order and try again.");
+    throw new Error(`Work order fields could not be found. Make sure the order is open in Work Mate, allow access to both Work Mate sites, then reload Shopify and try again.${lastError ? ` ${lastError.message}` : ""}`);
   const current = await chrome.tabs.get(tabId);
-  if (orderContext(current.url)?.url !== expected.url)
+  if (!isExpectedTab(current))
     throw new Error("The work order changed before injection. Nothing was filled.");
   const response = await chrome.tabs.sendMessage(tabId, {
     type: "TECHBAY_FILL_WORK_ORDER", values, allowEmpty,

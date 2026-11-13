@@ -896,17 +896,7 @@ form.addEventListener("submit", async (event) => {
   values.checkInNote = getCheckInNote();
 
   try {
-    const hasWorkMateAccess = await chrome.permissions.request({
-      origins: ["https://app.workmatepos.co/*"],
-    });
-    if (!hasWorkMateAccess) {
-      showStatus(
-        "Allow access to app.workmatepos.co to fill the embedded WorkMate order.",
-        "error",
-      );
-      return;
-    }
-
+    await requestWorkMateAccess();
     const response = await sendFillMessage(activeTabId, values);
     if (!response?.ok)
       throw new Error(response?.error || "The Shopify page did not respond.");
