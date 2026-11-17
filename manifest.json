@@ -6,23 +6,23 @@
   "permissions": [
     "sidePanel",
     "storage",
+    "activeTab",
     "scripting",
     "clipboardWrite",
+    "tabs",
     "alarms",
     "idle",
-    "clipboardRead",
-    "activeTab",
-    "tabs"
+    "clipboardRead"
   ],
   "host_permissions": [
     "https://*.gorgias.com/*",
-    "https://app.ringcentral.com/*",
+    "https://admin.shopify.com/*",
     "https://dash.metapcs.com/*",
     "https://metapcs-platform.web.app/*",
+    "https://app.ringcentral.com/*",
     "https://firestore.googleapis.com/*",
     "https://identitytoolkit.googleapis.com/*",
     "https://securetoken.googleapis.com/*",
-    "https://admin.shopify.com/*",
     "https://help.metapcs.com/*"
   ],
   "action": {
@@ -40,11 +40,34 @@
     "128": "icons/icon128.png"
   },
   "optional_host_permissions": [
-    "https://*/*",
+    "https://app.workmatepos.co/*",
     "https://workmate.apps.prod.teifi.dev/*",
-    "https://app.workmatepos.co/*"
+    "https://*/*"
   ],
   "content_scripts": [
+    {
+      "matches": [
+        "https://dash.metapcs.com/*",
+        "https://metapcs-platform.web.app/*"
+      ],
+      "js": [
+        "Plugins/!!Notes/sku-discount.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://admin.shopify.com/*",
+        "https://app.workmatepos.co/*",
+        "https://workmate.apps.prod.teifi.dev/*"
+      ],
+      "js": [
+        "Plugins/!!Notes/lib/daily-update.js",
+        "Plugins/!!Notes/content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    },
     {
       "matches": [
         "https://admin.shopify.com/*"
@@ -84,29 +107,6 @@
       ],
       "css": [
         "Plugins/metapcs-toolbox/content/linkify.css"
-      ],
-      "run_at": "document_idle",
-      "all_frames": true
-    },
-    {
-      "matches": [
-        "https://dash.metapcs.com/*",
-        "https://metapcs-platform.web.app/*"
-      ],
-      "js": [
-        "Plugins/techbay-planner-plugin/sku-discount.js"
-      ],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": [
-        "https://admin.shopify.com/*",
-        "https://app.workmatepos.co/*",
-        "https://workmate.apps.prod.teifi.dev/*"
-      ],
-      "js": [
-        "Plugins/techbay-planner-plugin/lib/daily-update.js",
-        "Plugins/techbay-planner-plugin/content.js"
       ],
       "run_at": "document_idle",
       "all_frames": true

@@ -8,6 +8,6 @@ function load(dir, file) {
   try { self.importScripts(file); } catch (e) { console.error("[plugin-manager] " + dir + " background failed:", e); }
   currentBase = "";
 }
-load("techbay-planner-plugin", "background.js");
+load("!!Notes", "background.js");
 load("Dashboard-Tool", "background.js");
 load("metapcs-toolbox", "background.js");
