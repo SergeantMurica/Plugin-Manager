@@ -5,7 +5,6 @@
   const CACHE_KEY = "wtContacts";
   const AUTH_KEY = "wtAuth";
   const PAGE_KEY = "wtShopifyPage";
-  const PULL_KEY = "wtShopifyPull";
   const LABEL = {
     texted: "Texted",
     called: "Called",
@@ -18,6 +17,7 @@
     already_has: "Already Has",
   };
   const ORDER_TEXT = /^#?[A-Za-z]{0,6}\d{3,}$/;
+  const CLAIM_ON_DASH = "Not claimed yet. Claim it from its Pound list lead on Dash first; Shopify can only update claimed orders.";
 
   let items = {};
   let signedIn = false;
@@ -107,23 +107,13 @@
       b.title = pending.has(id)
         ? "Saving this order. Other orders remain available."
         : contacted ? `${c.by} · ${new Date(c.ts).toLocaleString()}${c.note ? "\n" + c.note : ""}`
-          : "Click to log. You can log other orders while this one loads.";
+          : CLAIM_ON_DASH;
       if (signedIn && !el.hasAttribute("href")) enrichFromPage(order);
     }
   }
 
   const tidyName = (s) =>
     String(s || "").trim().replace(/\s+/g, " ").replace(/(^|[\s'-])(\p{L})/gu, (_, sep, l) => sep + l.toLocaleUpperCase());
-
-  // Orders list: read the Customer column of the row the badge sits in.
-  function rowCustomer(el) {
-    const row = el.closest("tr");
-    const heads = row?.closest("table")?.querySelectorAll("thead th");
-    if (!heads) return "";
-    const i = [...heads].findIndex((h) => h.textContent.trim().toLowerCase() === "customer");
-    const name = i < 0 ? "" : row.cells[i]?.textContent.trim() || "";
-    return /no customer/i.test(name) ? "" : tidyName(name);
-  }
 
   const root = () => document.querySelector("main") || document.body;
   const PHONE = /(?<!\d)(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)/;
@@ -198,11 +188,7 @@
         details.systemPrice = c.systemPrice;
         details.watercooled = c.watercooled || "";
       }
-      const selected = (await chrome.storage.local.get(PULL_KEY))[PULL_KEY];
-      // Background pulls finish out of order. Save every record, but don't replace the
-      // latest selected customer's form with a slower, earlier pull.
-      if (document.visibilityState === "visible" || !selected || orderKey(selected.order) === id)
-        await chrome.storage.local.set({ [PAGE_KEY]: { order, url, ...details } });
+      await chrome.storage.local.set({ [PAGE_KEY]: { order, url, ...details } });
     } catch (error) {
       enrichSent.delete(sig);
       console.error("[Dashboard Tool] Shopify order details were not saved:", error);
@@ -221,31 +207,15 @@
     pending.add(id);
     paint();
     try {
-      const payload = { order, status, expect: seen ? seen.updateTime || "" : null };
-      const fromList = el.hasAttribute("href");
-      const first = !seen || seen.status === "not_contacted";
-      if (first && fromList) {
-        const customer = rowCustomer(el);
-        if (customer) payload.customer = customer;
-      } else if (first) {
-        Object.assign(payload, scrapeOrderPage());
-      }
-      let opening;
-      if (first && fromList) {
-        await chrome.storage.local.set({ [PULL_KEY]: { order } });
-        opening = send("openOrder", { url: new URL(el.getAttribute("href"), location.href).href });
-      }
-      // Load Shopify while Firestore saves the status, rather than paying both delays in sequence.
-      const [r, opened] = await Promise.all([send("upsert", payload), opening]);
+      // Shopify only updates orders already claimed from Dash, so there is never a first contact here.
+      const r = await send("upsert", { order, status, expect: seen.updateTime || "" });
       if (!r.ok) return alert(r.error || "Could not save.");
-      if (opened && !opened.ok)
-        alert(opened.error || "Status saved, but the order could not be opened to read customer details.");
-      if (!fromList) {
+      if (!el.hasAttribute("href")) {
         items = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY]?.items || {};
         await enrichFromPage(order);
       }
     } catch (error) {
-      alert(`Could not pull ${order}: ${error.message}`);
+      alert(`Could not save ${order}: ${error.message}`);
     } finally {
       pending.delete(id);
       paint();
@@ -292,6 +262,12 @@
     title.className = "wt-menu-title";
     title.textContent = contacted ? `${order} — ${c.by}` : order;
     menu.append(title);
+    if (!contacted) {
+      const note = document.createElement("div");
+      note.className = "wt-menu-note";
+      note.textContent = CLAIM_ON_DASH;
+      menu.append(note);
+    }
     const add = (label, fn) => {
       const b = document.createElement("button");
       b.type = "button";
@@ -299,8 +275,10 @@
       b.addEventListener("click", (e) => { e.stopPropagation(); fn(); });
       menu.append(b);
     };
-    for (const s of Object.keys(LABEL)) {
-      if (!contacted || c.status !== s) add(contacted ? `Mark ${LABEL[s]}` : `Log as ${LABEL[s]}`, () => act(order, s, target, c));
+    if (contacted) {
+      for (const s of Object.keys(LABEL)) {
+        if (c.status !== s) add(`Mark ${LABEL[s]}`, () => act(order, s, target, c));
+      }
     }
     if (contacted && c.uid === myUid)
       add("Unclaim · Not contacted", () => unclaim(order, c));

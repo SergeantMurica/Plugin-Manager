@@ -61,13 +61,37 @@ function harness() {
     }
   };
   vm.runInContext(fs.readFileSync(path.join(__dirname, "background.js"), "utf8"), context);
-  const send = (type, payload) => new Promise((resolve) => messageHandler({ type, payload }, {}, resolve));
+  const send = (type, payload, sender = {}) => new Promise((resolve) => messageHandler({ type, payload }, sender, resolve));
   return { send, storage, docs };
 }
 
+test("only a Dash Pound list lead in the side panel can start or retake a claim", async () => {
+  const { send, storage } = harness();
+  const shopify = { tab: { id: 1, url: "https://admin.shopify.com/store/test/orders/1" } };
+  let result = await send("upsert", { order: "MPC12345", status: "called", expect: null });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /Pound list lead on Dash/);
+  result = await send("upsert", { order: "MPC12345", status: "called", lead: "WL-1", expect: null }, shopify);
+  assert.equal(result.ok, false);
+  assert.equal(storage.wtContacts, undefined);
+  result = await send("upsert", { order: "MPC12345", status: "called", lead: "WL-1", expect: null });
+  assert.equal(result.ok, true, result.error);
+  let record = storage.wtContacts.items.MPC12345;
+  result = await send("upsert", { order: "MPC12345", status: "emailed", expect: record.updateTime }, shopify);
+  assert.equal(result.ok, true, result.error);
+  record = storage.wtContacts.items.MPC12345;
+  assert.equal(record.status, "emailed");
+  await send("unclaim", { id: record.id, expect: record.updateTime });
+  record = storage.wtContacts.items.MPC12345;
+  result = await send("upsert", { order: "MPC12345", status: "called", expect: record.updateTime }, shopify);
+  assert.equal(result.ok, false);
+  assert.match(result.error, /Pound list lead on Dash/);
+  assert.equal(storage.wtContacts.items.MPC12345.status, "not_contacted");
+});
+
 test("called and emailed persist, unclaim syncs as not contacted, and another user can reclaim", async () => {
   const { send, storage, docs } = harness();
-  let result = await send("upsert", { order: "MPC12345", status: "called", expect: null });
+  let result = await send("upsert", { order: "MPC12345", status: "called", lead: "WL-1", expect: null });
   assert.equal(result.ok, true, result.error);
   assert.equal(storage.wtContacts.items.MPC12345.status, "called");
   let record = storage.wtContacts.items.MPC12345;
@@ -82,7 +106,7 @@ test("called and emailed persist, unclaim syncs as not contacted, and another us
   assert.equal(record.hidden, true);
   assert.equal(docs.get(record.id).fields.status.stringValue, "not_contacted");
   storage.wtAuth = { ...storage.wtAuth, uid: "u2", name: "Sam" };
-  result = await send("upsert", { order: record.order, status: "called", expect: record.updateTime });
+  result = await send("upsert", { order: record.order, status: "called", lead: "WL-2", expect: record.updateTime });
   assert.equal(result.ok, true, result.error);
   assert.equal(storage.wtContacts.items.MPC12345.uid, "u2");
   assert.equal(storage.wtContacts.items.MPC12345.hidden, false);
@@ -90,7 +114,7 @@ test("called and emailed persist, unclaim syncs as not contacted, and another us
 
 test("unclaim rejects other users and stale versions without modifying the record", async () => {
   const { send, storage, docs } = harness();
-  await send("upsert", { order: "MPC12345", status: "called", expect: null });
+  await send("upsert", { order: "MPC12345", status: "called", lead: "WL-1", expect: null });
   const original = storage.wtContacts.items.MPC12345;
   storage.wtAuth = { ...storage.wtAuth, uid: "u2", name: "Sam" };
   let result = await send("unclaim", { id: original.id, expect: original.updateTime });
@@ -107,7 +131,7 @@ test("unclaim rejects other users and stale versions without modifying the recor
 
 test("incremental refresh propagates an unclaim from another device", async () => {
   const { send, storage, docs } = harness();
-  await send("upsert", { order: "MPC12345", status: "emailed", expect: null });
+  await send("upsert", { order: "MPC12345", status: "emailed", lead: "WL-1", expect: null });
   let result = await send("refresh", { force: true });
   assert.equal(result.ok, true, result.error);
   const original = docs.get("MPC12345");

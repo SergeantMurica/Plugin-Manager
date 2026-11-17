@@ -38,6 +38,7 @@
   font: 13px system-ui, sans-serif;
 }
 .wt-menu-title { padding: 4px 8px 6px; font-weight: 600; color: #555; }
+.wt-menu-note { max-width: 240px; padding: 2px 8px 6px; color: #6b7280; font-size: 12px; line-height: 1.4; }
 .wt-menu button {
   display: block;
   width: 100%;

@@ -30,14 +30,16 @@ class Element {
   }
 }
 
-test("Shopify badge offers called, emailed, and unclaim and returns to not contacted", async () => {
+test("Shopify badge updates claimed orders but cannot start a claim", async () => {
   const link = new Element("a");
   link.textContent = "MPC12345";
   link.href = "/store/test/orders/123";
   const body = new Element("body");
   const state = {
     wtAuth: { uid: "u1" },
-    wtContacts: { items: {} },
+    wtContacts: { items: {
+      MPC12345: { id: "MPC12345", order: "MPC12345", by: "Alex", uid: "u1", status: "texted", ts: 1, updateTime: "v0" },
+    } },
   };
   const changes = [];
   const messages = [];
@@ -86,16 +88,18 @@ test("Shopify badge offers called, emailed, and unclaim and returns to not conta
   const flush = async () => { for (let i = 0; i < 5; i++) await new Promise(setImmediate); };
   await flush();
   const badge = link.nextElementSibling;
-  assert.equal(badge.textContent, "Not contacted");
+  assert.equal(badge.textContent, "Texted: Alex");
   badge.click();
   let menu = body.children.at(-1);
   const labels = menu.children.map((child) => child.textContent);
-  assert.ok(labels.includes("Log as Called"));
-  assert.ok(labels.includes("Log as Emailed"));
-  menu.children.find((child) => child.textContent === "Log as Called").click();
+  assert.ok(labels.includes("Mark Called"));
+  assert.ok(labels.includes("Mark Emailed"));
+  menu.children.find((child) => child.textContent === "Mark Called").click();
   await flush();
   assert.equal(badge.textContent, "Called: Alex");
-  assert.equal(messages.find((message) => message.type === "upsert").payload.status, "called");
+  const upsert = messages.find((message) => message.type === "upsert").payload;
+  assert.equal(upsert.status, "called");
+  assert.equal(upsert.expect, "v0");
   badge.click();
   menu = body.children.at(-1);
   assert.ok(menu.children.some((child) => child.textContent === "Mark Emailed"));
@@ -105,5 +109,6 @@ test("Shopify badge offers called, emailed, and unclaim and returns to not conta
   assert.equal(messages.find((message) => message.type === "unclaim").payload.expect, "v1");
   badge.click();
   menu = body.children.at(-1);
-  assert.ok(menu.children.some((child) => child.textContent === "Log as Emailed"));
+  assert.ok(!menu.children.some((child) => child.tagName === "BUTTON"));
+  assert.match(menu.children.find((child) => child.className === "wt-menu-note").textContent, /Pound list lead on Dash/);
 });

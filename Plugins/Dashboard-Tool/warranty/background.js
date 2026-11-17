@@ -325,23 +325,6 @@ async function enrich({ order, ...data }) {
   return n;
 }
 
-function openOrder({ url }, sender) {
-  if (
-    !/^https:\/\/admin\.shopify\.com\/store\/[^/]+\/orders\/\d+/.test(url || "")
-  )
-    throw new Error("Bad order link.");
-  const tab = sender?.tab;
-  return chrome.tabs
-    .create({
-      url,
-      active: false,
-      ...(tab
-        ? { index: tab.index + 1, openerTabId: tab.id, windowId: tab.windowId }
-        : {}),
-    })
-    .then(() => 1);
-}
-
 // Overlays this device's local customer data onto records from Firestore.
 async function mergePrivate(list) {
   const priv = await getPrivate();
@@ -474,7 +457,10 @@ async function patchCache(fn = () => {}) {
   });
 }
 
-async function upsert(input) {
+const DASH_CLAIM_REQUIRED =
+  "Start this claim from its claimed Pound list lead on Dash (dash.metapcs.com or metapcs-platform.web.app). Shopify and the team log can only update orders that are already claimed.";
+
+async function upsert(input, sender) {
   const a = await getAuth();
   if (!a) throw new Error("Not signed in.");
   const id = orderKey(input.order);
@@ -503,6 +489,10 @@ async function upsert(input) {
     prev = fresh;
     expect = fresh.updateTime;
   }
+  // New or unclaimed orders can only be claimed from the side panel with a Dash Pound list lead open.
+  const claimed = prev && !prev.hidden && prev.status !== "not_contacted";
+  if (!claimed && (sender?.tab || !/^WL-\d+$/.test(input.lead || "")))
+    throw new Error(DASH_CLAIM_REQUIRED);
   const now = Date.now();
   // The original texter keeps the order when a teammate changes its status; only a hidden
   // (removed) record can be claimed by someone else.
@@ -698,7 +688,6 @@ const handlers = {
   scrub,
   importPrivate,
   enrich,
-  openOrder,
   remove: ({ id }) => remove(id),
   unclaim,
   refresh: (p) => refreshContacts(!!p?.force),

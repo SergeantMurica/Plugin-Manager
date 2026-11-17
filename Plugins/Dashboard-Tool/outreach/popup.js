@@ -447,6 +447,12 @@ async function unclaimLead() {
 
 
 // ---------- warranty tool link ----------
+const UNCLAIMED_ON_DASH = /^(?:|-|\u2014|none|unclaimed|not claimed)$/i;
+// Only a Pound list lead that is claimed on Dash can start a new Warranty claim.
+const dashClaimedLead = (lead) =>
+  /^WL-\d+$/.test(lead?.id || "") && !UNCLAIMED_ON_DASH.test(String(lead?.claimedBy || "").trim());
+const warrantyClaimed = (e) => !!e && !e.hidden && e.status !== "not_contacted";
+
 function renderWarranty() {
   if (!hasWarrantyTool || current?.type !== "warranty") return;
   const key = orderKey(current.order);
@@ -473,6 +479,9 @@ function renderWarranty() {
       msg = `${titleCase(e.by)} already worked ${e.order} on ${when} (${label}). Check the log before contacting them.`;
       tone = "warn";
     }
+  } else if (!dashClaimedLead(current)) {
+    msg = `${key} isn't claimed yet. Open its Pound list lead on Dash and claim it there before logging it.`;
+    tone = "warn";
   } else
     msg = `${key} isn't in the Warranty Tool yet. Log it after contacting the customer so nobody contacts them twice.`;
   els.wtHint.textContent = msg;
@@ -484,7 +493,7 @@ function renderWarranty() {
     els.wtStatus.value = savedStatus;
   warrantyStatusOrder = key;
   warrantySavedStatus = savedStatus;
-  els.wtLog.disabled = !wtAuth || !key;
+  els.wtLog.disabled = !wtAuth || !key || (!warrantyClaimed(e) && !dashClaimedLead(current));
   els.wtLog.textContent = unified
     ? "Save warranty status"
     : e && !e.hidden ? "Update Warranty Tool" : "Log in Warranty Tool";
@@ -513,6 +522,10 @@ async function logWarranty() {
   const key = orderKey(current?.order);
   if (!key) return false;
   const e = wtItems[key];
+  if (!warrantyClaimed(e) && !dashClaimedLead(current)) {
+    showError(`${key} isn't claimed yet. Open its Pound list lead on Dash (dash.metapcs.com or metapcs-platform.web.app) and claim it there first.`);
+    return false;
+  }
   if (
     e &&
     !e.hidden &&
@@ -528,6 +541,7 @@ async function logWarranty() {
     ...warrantyDetails(),
     order: current.order.trim().toUpperCase(),
     status: els.wtStatus.value,
+    lead: /^WL-\d+$/.test(current.id || "") ? current.id : "",
     expect: e ? e.updateTime || "" : null,
   });
   els.wtLog.disabled = false;
@@ -842,6 +856,12 @@ chrome.storage.onChanged.addListener((c, area) => {
       if (show(fromPage(page, false), false, unified)) save(true);
     } else if (page?.leadId && current) {
       const merged = mergeScrape(current, page, false);
+      // Claiming on Dash doesn't change customer fields, so pick it up on its own.
+      if (merged.claimedBy !== current.claimedBy) {
+        current.claimedBy = merged.claimedBy;
+        save();
+        renderWarranty();
+      }
       const changed =
         FIELDS.some((f) => merged[f] !== current[f]) ||
         merged.type !== current.type;
