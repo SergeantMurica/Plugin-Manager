@@ -24,6 +24,13 @@ timer.
 Unclaimed orders remain as hidden shared records so incremental synchronization
 can update other devices; they are not included in the archive.
 
+## Warranty pricing
+
+Choose either **Watercooled** or **Custom build**; leave both off for a normal
+ready-to-ship (RTS) PC. Choosing one turns the other off. A manual selection is
+kept when the Shopify order is read again. Custom build plans are $180 for two
+years and $270 for three years per PC. Watercooled plans remain $499 and $799.
+
 ## Retention
 
 - **Texted**, **Called**, and **Emailed** entries are archived after 30 days in

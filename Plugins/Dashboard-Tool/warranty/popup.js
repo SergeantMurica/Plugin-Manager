@@ -7,6 +7,7 @@ import {
   variantStats,
 } from "./lib/scripts.js";
 import * as backup from "./lib/backup.js";
+import { makeBuildOptionsExclusive } from "../customer.js";
 
 const unified = !!document.getElementById("dashboardWorkspace");
 const dashboard = unified || new URLSearchParams(location.search).has("dashboard")
@@ -84,6 +85,7 @@ const els = {
   statsToggle: $("statsToggle"),
   stats: $("stats"),
 };
+makeBuildOptionsExclusive(els.watercooled, els.custom);
 
 // ---------- text script ----------
 const PRICES = {
@@ -99,7 +101,7 @@ const PRICES = {
   ],
 };
 const WATERCOOLED_PRICES = { 2: 499, 3: 799 };
-const CUSTOM_PRICES = { 3: 270 };
+const CUSTOM_PRICES = { 2: 180, 3: 270 };
 const MAX_PRICED_TOTAL = 12000;
 const MANAGER_NOTE = "{manager to calculate}";
 const priceFor = (years, total, custom = false) =>
@@ -713,12 +715,14 @@ function render() {
       wcLabel.append(wcIn, "Watercooled");
       const customLabel = document.createElement("label");
       customLabel.className = "toggle";
-      customLabel.title = "Custom build pricing: 3-yr $270";
+      customLabel.title = "Custom build pricing: 2-yr $180 · 3-yr $270";
       const customIn = document.createElement("input");
       customIn.type = "checkbox";
-      const initialCustom = e.custom === "yes" || (pcList(e.systems).length > 0 && pcList(e.systems).every((p) => p.custom));
+      const initialCustom = !wcIn.checked &&
+        (e.custom === "yes" || (pcList(e.systems).length > 0 && pcList(e.systems).every((p) => p.custom)));
       customIn.checked = initialCustom;
       customLabel.append(customIn, "Custom build");
+      makeBuildOptionsExclusive(wcIn, customIn);
       const save = document.createElement("button");
       save.type = "button";
       save.className = "primary";
@@ -839,21 +843,15 @@ els.statsToggle.addEventListener("click", () => {
 });
 
 // ---------- events ----------
-for (const input of [
-  els.phone,
-  els.email,
-  els.order,
-  els.name,
-  els.systemPrice,
-  els.watercooled,
-  els.custom,
-]) {
-  input.addEventListener("input", () => {
-    showError(els.error, "");
-    updateHint();
-    saveDraft();
-  });
-}
+const draftChanged = () => {
+  showError(els.error, "");
+  updateHint();
+  saveDraft();
+};
+for (const input of [els.phone, els.email, els.order, els.name, els.systemPrice])
+  input.addEventListener("input", draftChanged);
+for (const input of [els.watercooled, els.custom])
+  input.addEventListener("change", draftChanged);
 els.name.addEventListener("blur", () => {
   els.name.value = capitalizeName(els.name.value);
   saveDraft();
@@ -1170,7 +1168,7 @@ export const ready = (async () => {
   els.name.value = capitalizeName(draft.name || "");
   els.systemPrice.value = draft.systemPrice || "";
   els.watercooled.checked = !!draft.watercooled;
-  els.custom.checked = !!draft.custom;
+  els.custom.checked = !!draft.custom && !els.watercooled.checked;
   if (unified) els.watercooled.dispatchEvent(new Event("change"));
   els.clear.hidden = !unified && !(
     draft.phone ||

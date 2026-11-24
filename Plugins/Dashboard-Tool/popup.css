@@ -63,10 +63,13 @@ button:disabled, select:disabled { cursor: default; opacity: 0.55; }
 #pl-lead:empty { display: none; }
 .field:has(#systemPrice) { grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px 10px; }
 .field:has(#systemPrice) > span { grid-column: 1 / -1; grid-row: 1; }
-.field:has(#systemPrice) .toggle { grid-column: 1; grid-row: 2; height: 36px; }
+.field:has(#systemPrice) .toggle { grid-column: 1; height: 36px; }
+.field:has(#systemPrice) .toggle:has(#watercooled) { grid-row: 2; }
+.field:has(#systemPrice) .toggle:has(#custom) { grid-row: 3; }
 #systemPrice { grid-column: 2; grid-row: 2; min-width: 0; }
 #systemPrice:disabled { display: none; }
 #fixedWarrantyPrice { grid-column: 2; grid-row: 2; margin: 0; padding: 8px; font-size: 11px; }
+#customWarrantyPrice { grid-column: 2; grid-row: 3; margin: 0; padding: 8px; font-size: 11px; }
 .hint, .error { overflow-wrap: anywhere; line-height: 1.55; border-radius: 7px; }
 .error:not(:empty) { padding: 8px 10px; background: var(--bad-soft); }
 

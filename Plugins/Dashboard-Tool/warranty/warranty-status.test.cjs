@@ -202,6 +202,29 @@ async function refresh(h) {
   assert.equal(result.ok, true, result.error);
 }
 
+test("explicit build-type changes replace old flags while status-only updates preserve them", async () => {
+  const h = harness();
+  await logContact(h, "MPC12345", "called", { watercooled: "yes", custom: "yes", systemPrice: "4000" });
+  const update = (details) => h.send("upsert", {
+    order: "MPC12345", status: "called", expect: h.storage.wtContacts.items.MPC12345.updateTime, ...details,
+  });
+  assert.equal((await update({})).ok, true);
+  assert.equal(h.storage.wtPrivate.MPC12345.watercooled, "yes");
+  assert.equal(h.storage.wtPrivate.MPC12345.custom, "yes");
+
+  for (const [watercooled, custom] of [["", "yes"], ["yes", ""], ["", ""]]) {
+    const result = await update({ replaceBuildType: true, watercooled, custom, systems: "manual" });
+    assert.equal(result.ok, true, result.error);
+    assert.equal(h.storage.wtPrivate.MPC12345.watercooled, watercooled);
+    assert.equal(h.storage.wtPrivate.MPC12345.custom, custom);
+  }
+  const before = h.storage.wtContacts.items.MPC12345.updateTime;
+  const invalid = await update({ replaceBuildType: true, watercooled: "yes", custom: "yes" });
+  assert.equal(invalid.ok, false);
+  assert.match(invalid.error, /either Watercooled or Custom/);
+  assert.equal(h.storage.wtContacts.items.MPC12345.updateTime, before);
+});
+
 test("archives 30 days after the latest status change and deletes after 60 days in the archive", async () => {
   const h = harness();
   await logContact(h, "MPC12345", "texted", { customer: "Customer", phone: "5551234567" });

@@ -10,6 +10,14 @@ export const sharedFieldIds = {
 
 const CHECKBOXES = ["watercooled", "custom"];
 
+export function makeBuildOptionsExclusive(watercooled, custom) {
+  for (const [selected, other] of [[watercooled, custom], [custom, watercooled]]) {
+    selected.addEventListener("change", () => {
+      if (selected.checked) other.checked = false;
+    });
+  }
+}
+
 export function draftConflicts(draft, lead) {
   const normalize = (key, value) => {
     const text = String(value || "").trim();

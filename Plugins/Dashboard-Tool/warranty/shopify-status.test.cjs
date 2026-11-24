@@ -115,11 +115,54 @@ test("Shopify badge updates claimed orders but cannot start a claim", async () =
   assert.match(menu.children.find((child) => child.className === "wt-menu-note").textContent, /Pound list lead on Dash/);
 });
 
-test("custom builds quote a flat $270 3-year plan, per PC on mixed orders", async () => {
+test("custom builds quote $180 and $270, including on mixed orders", async () => {
   const { pathToFileURL } = require("node:url");
   const { warrantyPrices } = await import(pathToFileURL(path.join(__dirname, "..", "outreach", "lib", "scripts.js")));
-  assert.deepEqual(warrantyPrices("5000", false, "", true), { two: "$320", three: "$270", known: true });
+  assert.deepEqual(warrantyPrices("5000", false, "", true), { two: "$180", three: "$270", known: true });
+  assert.deepEqual(warrantyPrices("", false, "", true), { two: "$180", three: "$270", known: true });
+  assert.deepEqual(warrantyPrices("15000", false, "", true), { two: "$180", three: "$270", known: true });
   assert.deepEqual(warrantyPrices("5000", false, ""), { two: "$320", three: "$480", known: true });
-  assert.deepEqual(warrantyPrices("", false, "c1500,3000"), { two: "$420 for both PCs", three: "$590 for both PCs", known: true });
+  assert.deepEqual(warrantyPrices("", false, "c5000,3000"), { two: "$420 for both PCs", three: "$590 for both PCs", known: true });
   assert.deepEqual(warrantyPrices("2000", true, "", true), { two: "$499", three: "$799", known: true });
+
+  const source = fs.readFileSync(path.join(__dirname, "popup.js"), "utf8");
+  const pricing = source.slice(source.indexOf("const PRICES ="), source.indexOf("// Copies the script"));
+  const context = vm.createContext({ auth: { name: "Rep" }, capitalizeName: (s) => s });
+  vm.runInContext(pricing, context);
+  for (const [expression, two, three] of [
+    ['scriptContext("Customer", "5000", false, "", true)', "$180", "$270"],
+    ['scriptContext("Customer", "", false, "", true)', "$180", "$270"],
+    ['scriptContext("Customer", "15000", false, "", true)', "$180", "$270"],
+    ['scriptContext("Customer", "", false, "c5000,3000")', "$420 for both PCs", "$590 for both PCs"],
+    ['scriptContext("Customer", "2000", true, "", true)', "$499", "$799"],
+  ]) {
+    const result = vm.runInContext(expression, context);
+    assert.equal(result.two, two, expression);
+    assert.equal(result.three, three, expression);
+  }
+});
+
+test("Shopify build detection distinguishes watercooled, custom, and RTS", () => {
+  const source = fs.readFileSync(path.join(__dirname, "content.js"), "utf8");
+  const scraper = source.slice(source.indexOf("const PC_LINE ="), source.indexOf("  async function enrichFromPage("));
+  for (const [sku, watercooled, custom] of [
+    ["CONFIG/WC", "yes", ""],
+    ["CONFIG/AIR", "", "yes"],
+    ["CUSTOM/PC", "", "yes"],
+    ["RTS/SHADE", "", ""],
+  ]) {
+    const root = {
+      innerText: `SKU\n${sku}\nUnit price\n$4,000.00\n×\n1\nSubtotal\n`,
+      querySelectorAll: () => [],
+      querySelector: () => null,
+    };
+    const context = vm.createContext({
+      root: () => root, tidyName: (s) => s || "",
+      PHONE: /unused/, UUID: /unused/g, EMAIL: /unused/,
+    });
+    const data = vm.runInContext(`${scraper}\nscrapeOrderPage()`, context);
+    assert.equal(data.watercooled, watercooled, sku);
+    assert.equal(data.custom, custom, sku);
+    assert.equal(data.systemPrice, "4000", sku);
+  }
 });

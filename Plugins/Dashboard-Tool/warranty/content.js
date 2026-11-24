@@ -163,7 +163,7 @@
       data.systems = pcs.map((p) => `${isCustomSku(p.sku) ? "c" : ""}${p.amount}`).join(",");
       data.systemPrice = String(Math.round(pcs.reduce((s, p) => s + p.amount, 0) * 100) / 100);
       data.watercooled = pcs.some((p) => p.sku === "CONFIG/WC") ? "yes" : "";
-      data.custom = pcs.every((p) => isCustomSku(p.sku)) ? "yes" : "";
+      data.custom = !data.watercooled && pcs.every((p) => isCustomSku(p.sku)) ? "yes" : "";
     }
     return data;
   }

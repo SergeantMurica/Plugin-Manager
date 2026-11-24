@@ -34,7 +34,7 @@ const PRICES = {
   ],
 };
 const WATERCOOLED = { 2: 499, 3: 799 };
-const CUSTOM = { 3: 270 };
+const CUSTOM = { 2: 180, 3: 270 };
 // systems: per-PC prices from Shopify, "c" prefix = custom build (e.g. "c1149,1299").
 export function warrantyPrices(systemPrice, watercooled, systems = "", custom = false) {
   const pcs = String(systems)

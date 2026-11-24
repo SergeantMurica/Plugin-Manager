@@ -70,7 +70,7 @@ async function init() {
   watercooled.querySelector("input").setAttribute("aria-label", "Watercooled");
   const customBuild = form.querySelector("#custom").closest(".toggle");
   customBuild.querySelector("input").setAttribute("aria-label", "Custom build");
-  priceField.querySelector("span").textContent = "Warranty pricing";
+  priceField.querySelector("span").textContent = "Warranty pricing (leave both off for normal RTS)";
   priceField.prepend(watercooled, customBuild);
   const fixedPrice = document.createElement("p");
   fixedPrice.id = "fixedWarrantyPrice";
@@ -81,7 +81,7 @@ async function init() {
   const customPrice = document.createElement("p");
   customPrice.id = "customWarrantyPrice";
   customPrice.className = "hint";
-  customPrice.textContent = "Custom build: 3 years $270 per PC";
+  customPrice.textContent = "Custom build: 2 years $180 / 3 years $270 per PC";
   customPrice.hidden = true;
   priceField.append(customPrice);
 

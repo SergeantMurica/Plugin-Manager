@@ -625,6 +625,10 @@ async function upsert(input, sender) {
   if (!a) throw new Error("Not signed in.");
   const id = orderKey(input.order);
   if (!id) throw new Error("Order number is required.");
+  if (input.replaceBuildType === true &&
+      (!["", "yes"].includes(input.watercooled) || !["", "yes"].includes(input.custom) ||
+       (input.watercooled === "yes" && input.custom === "yes")))
+    throw new Error("Choose either Watercooled or Custom build, or leave both off for RTS.");
   if (input.status !== undefined && (!STATUSES.includes(input.status) || input.status === "not_contacted"))
     throw new Error("Choose a valid contact status.");
   const status = input.status || "texted";
@@ -691,10 +695,14 @@ async function upsert(input, sender) {
     if (!CONFLICT_CODES.includes(e.code) && e.code !== "NOT_FOUND") throw e;
     throw await conflictError(await freshForChange(id, cached?.updateTime), a);
   }
-  // Blank fields from callers that don't know a value (Shopify badge, Pound List) keep the saved one.
+  // Blank unknown fields keep saved values; an explicit build-type change can clear them.
   const known = Object.fromEntries(
     PRIVATE_FIELDS.filter((f) => String(input[f] ?? "").trim()).map((f) => [f, input[f]]),
   );
+  if (input.replaceBuildType === true) {
+    known.watercooled = input.watercooled;
+    known.custom = input.custom;
+  }
   const priv = await savePrivate(id, known);
   const full = {
     phone: "",

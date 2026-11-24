@@ -148,3 +148,95 @@ test("Dash recognizes an archived tracker claim and warns before updating anothe
   vm.runInContext("renderWarranty()", context);
   assert.equal(els.wtLog.disabled, true);
 });
+
+test("build options are exclusive and both can be off for RTS", async () => {
+  const { pathToFileURL } = require("node:url");
+  const { makeBuildOptionsExclusive } = await import(pathToFileURL(path.join(__dirname, "..", "customer.js")));
+  const watercooled = new EventTarget();
+  const custom = new EventTarget();
+  watercooled.checked = false;
+  custom.checked = false;
+  makeBuildOptionsExclusive(watercooled, custom);
+
+  custom.checked = true;
+  custom.dispatchEvent(new Event("change"));
+  watercooled.checked = true;
+  watercooled.dispatchEvent(new Event("change"));
+  assert.equal(watercooled.checked, true);
+  assert.equal(custom.checked, false);
+
+  custom.checked = true;
+  custom.dispatchEvent(new Event("change"));
+  assert.equal(custom.checked, true);
+  assert.equal(watercooled.checked, false);
+  custom.checked = false;
+  custom.dispatchEvent(new Event("change"));
+  assert.equal(watercooled.checked, false);
+  assert.equal(custom.checked, false);
+});
+
+test("explicit build choices include cleared flags without clearing unknown choices", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "outreach", "popup.js"), "utf8");
+  const details = source.slice(source.indexOf("function warrantyDetails()"), source.indexOf("async function logWarranty()"));
+  const context = vm.createContext({ current: {}, prettyPhone: (s) => s, titleCase: (s) => s || "" });
+  vm.runInContext(details, context);
+
+  let result = vm.runInContext("warrantyDetails()", context);
+  assert.equal("watercooled" in result, false);
+  assert.equal("custom" in result, false);
+  context.current = { custom: true, watercooled: false, buildTypeEdited: true };
+  result = vm.runInContext("warrantyDetails()", context);
+  assert.equal(result.custom, "yes");
+  assert.equal(result.watercooled, "");
+  assert.equal(result.replaceBuildType, true);
+  context.current.custom = false;
+  result = vm.runInContext("warrantyDetails()", context);
+  assert.equal(result.custom, "");
+  assert.equal(result.watercooled, "");
+});
+
+test("choosing a build type before entering customer details keeps it as an explicit choice", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "outreach", "popup.js"), "utf8");
+  const ensure = source.slice(source.indexOf("function ensureCustomerLead("), source.indexOf("function showShopifyOrder("));
+  const events = source.slice(source.indexOf('for (const flag of ["watercooled", "custom"])'), source.indexOf('els.type.addEventListener("change"'));
+  const watercooled = new EventTarget();
+  const custom = new EventTarget();
+  watercooled.checked = false;
+  custom.checked = false;
+  let savedImmediately = false;
+  const context = vm.createContext({
+    unified: true, current: null, els: { watercooled, custom },
+    customer: { readCustomer: () => ({ order: "", customer: "", watercooled: watercooled.checked, custom: custom.checked }) },
+    crypto: { randomUUID: () => "test" }, blankLead: (id) => ({ id }),
+    show: (lead) => { context.current = lead; },
+    save: (now) => { savedImmediately = now; }, renderScript() {},
+  });
+  vm.runInContext(`${ensure}\n${events}`, context);
+  custom.checked = true;
+  custom.dispatchEvent(new Event("change"));
+  assert.equal(context.current.custom, true);
+  assert.equal(context.current.watercooled, false);
+  assert.equal(context.current.buildTypeEdited, true);
+  assert.equal(context.current.systems, "manual");
+  assert.equal(savedImmediately, true);
+});
+
+test("a manual build choice is not overwritten by a later Shopify scrape", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "outreach", "popup.js"), "utf8");
+  const showShopify = source.slice(source.indexOf("function showShopifyOrder(data)"), source.indexOf("\nfor (const f of FIELDS)"));
+  const context = vm.createContext({
+    unified: true, shopifyPage: null,
+    current: { type: "warranty", order: "MPC12345", custom: true, watercooled: false, systems: "manual", buildTypeEdited: true },
+    orderKey: (s) => s, fillForm() {}, renderAll() {}, save() {},
+  });
+  vm.runInContext(showShopify, context);
+  context.data = {
+    order: "MPC12345", url: "https://admin.shopify.com/store/test/orders/1",
+    systemPrice: "4000", watercooled: "yes", custom: "", systems: "c4000",
+  };
+  vm.runInContext("showShopifyOrder(data)", context);
+  assert.equal(context.current.custom, true);
+  assert.equal(context.current.watercooled, false);
+  assert.equal(context.current.systems, "manual");
+  assert.equal(context.current.systemPrice, "4000");
+});

@@ -1,4 +1,5 @@
 import { sendDashMessage } from "./lib/dash.js";
+import { makeBuildOptionsExclusive } from "../customer.js";
 import {
   EMAILS,
   LEAD_TYPES,
@@ -84,6 +85,7 @@ const els = Object.fromEntries(
     "callback",
   ].map((id) => [id, $(id)]),
 );
+if (!unified) makeBuildOptionsExclusive(els.watercooled, els.custom);
 
 let leads = {};
 let removedLeads = new Set();
@@ -320,7 +322,8 @@ function fillForm() {
   }
   if (!unified || l) {
     els.watercooled.checked = !!l?.watercooled;
-    els.custom.checked = !!l?.custom;
+    els.custom.checked = !!l?.custom && !els.watercooled.checked;
+    if (l && els.watercooled.checked) l.custom = false;
   }
   els.type.value = l?.type || "other";
   for (const el of els.lead.querySelectorAll("input, select, button")) {
@@ -505,8 +508,7 @@ function renderWarranty() {
     : warrantyClaimed(e) ? "Update Warranty Tool" : "Log in Warranty Tool";
 }
 
-// Everything the Warranty Tool keeps for an order. Blank fields are left out so they
-// never wipe details already saved there (e.g. scraped from Shopify).
+// Blank fields keep saved details unless the build type was explicitly changed.
 function warrantyDetails() {
   const l = current || {};
   const d = {
@@ -515,10 +517,16 @@ function warrantyDetails() {
     customer: titleCase(l.customer),
     systemPrice: String(l.systemPrice || "").replace(/[^0-9.]/g, ""),
     watercooled: l.watercooled ? "yes" : "",
-    custom: l.custom ? "yes" : "",
+    custom: l.custom && !l.watercooled ? "yes" : "",
     systems: l.systems || "",
   };
-  return Object.fromEntries(Object.entries(d).filter(([, v]) => v));
+  const details = Object.fromEntries(Object.entries(d).filter(([, v]) => v));
+  if (l.buildTypeEdited) {
+    details.watercooled = d.watercooled;
+    details.custom = d.custom;
+    details.replaceBuildType = true;
+  }
+  return details;
 }
 
 async function logWarranty() {
@@ -740,10 +748,10 @@ function renderScript() {
 }
 
 // ---------- events ----------
-function ensureCustomerLead() {
+function ensureCustomerLead(allowEmpty = false) {
   if (!unified || current) return;
   const fields = customer.readCustomer();
-  if (!Object.entries(fields).some(([, value]) => typeof value === "string" && value.trim())) return;
+  if (!allowEmpty && !Object.entries(fields).some(([, value]) => typeof value === "string" && value.trim())) return;
   const lead = { ...blankLead(`WT-${crypto.randomUUID()}`), ...fields, type: "warranty" };
   show(lead);
 }
@@ -760,6 +768,7 @@ function showShopifyOrder(data) {
     url: data.url,
   };
   for (const field of ["customer", "phone", "email", "systemPrice", "watercooled", "custom", "systems"]) {
+    if (sameOrder && lead.buildTypeEdited && ["watercooled", "custom", "systems"].includes(field)) continue;
     const flag = field === "watercooled" || field === "custom";
     const value = flag ? data[field] === "yes" : data[field] || "";
     const old = flag ? previous?.[field] === "yes" : previous?.[field] || "";
@@ -811,11 +820,13 @@ if (unified) {
 }
 for (const flag of ["watercooled", "custom"]) {
   els[flag].addEventListener("change", () => {
-    ensureCustomerLead();
+    ensureCustomerLead(true);
     if (!current) return;
-    current[flag] = els[flag].checked;
+    current.watercooled = els.watercooled.checked;
+    current.custom = els.custom.checked;
+    current.buildTypeEdited = true;
     current.systems = "manual";
-    save();
+    save(true);
     renderScript();
   });
 }
