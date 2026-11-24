@@ -70,6 +70,7 @@ const els = Object.fromEntries(
     "amount",
     "systemPrice",
     "watercooled",
+    "custom",
     "wtBox",
     "wtHint",
     "wtStatus",
@@ -214,7 +215,7 @@ async function toDash(msg) {
 function ctx() {
   const l = current || {};
   const first = titleCase(l.customer).split(/\s+/)[0];
-  const w = warrantyPrices(l.systemPrice, l.watercooled, l.systems);
+  const w = warrantyPrices(l.systemPrice, l.watercooled, l.systems, l.custom);
   return {
     first: first || "there",
     rep: repName() || "{your name}",
@@ -240,6 +241,7 @@ function blankLead(id) {
     amount: "",
     systemPrice: "",
     watercooled: false,
+    custom: false,
     url: "",
     ts: Date.now(),
     updatedAt: Date.now(),
@@ -316,7 +318,10 @@ function fillForm() {
   for (const f of FIELDS) {
     if (!unified || l || !customer.sharedFieldIds[f]) els[f].value = l?.[f] || "";
   }
-  if (!unified || l) els.watercooled.checked = !!l?.watercooled;
+  if (!unified || l) {
+    els.watercooled.checked = !!l?.watercooled;
+    els.custom.checked = !!l?.custom;
+  }
   els.type.value = l?.type || "other";
   for (const el of els.lead.querySelectorAll("input, select, button")) {
     if (el !== els.readPage) el.disabled = !l;
@@ -451,7 +456,7 @@ const UNCLAIMED_ON_DASH = /^(?:|-|\u2014|none|unclaimed|not claimed)$/i;
 // Only a Pound list lead that is claimed on Dash can start a new Warranty claim.
 const dashClaimedLead = (lead) =>
   /^WL-\d+$/.test(lead?.id || "") && !UNCLAIMED_ON_DASH.test(String(lead?.claimedBy || "").trim());
-const warrantyClaimed = (e) => !!e && !e.hidden && e.status !== "not_contacted";
+const warrantyClaimed = (e) => !!e && e.status !== "not_contacted";
 
 function renderWarranty() {
   if (!hasWarrantyTool || current?.type !== "warranty") return;
@@ -466,7 +471,7 @@ function renderWarranty() {
         : "Sign in on the Warranty Upsell Tracker tab to log this order for the team.";
   else if (!key)
     msg = "Add the MPC order number to check and log it in the Warranty Tool.";
-  else if (e && !e.hidden) {
+  else if (warrantyClaimed(e)) {
     const label = WT_STATUSES.find(([v]) => v === e.status)?.[1] || e.status;
     const when = new Date(e.ts).toLocaleDateString(undefined, {
       month: "short",
@@ -479,6 +484,7 @@ function renderWarranty() {
       msg = `${titleCase(e.by)} already worked ${e.order} on ${when} (${label}). Check the log before contacting them.`;
       tone = "warn";
     }
+    if (e.hidden) msg += " This entry is archived; saving a status restores it to the active log.";
   } else if (!dashClaimedLead(current)) {
     msg = `${key} isn't claimed yet. Open its Pound list lead on Dash and claim it there before logging it.`;
     tone = "warn";
@@ -487,7 +493,7 @@ function renderWarranty() {
   els.wtHint.textContent = msg;
   els.wtHint.dataset.tone = tone;
   els.wtHint.hidden = !msg;
-  const savedStatus = e && !e.hidden ? e.status : "texted";
+  const savedStatus = warrantyClaimed(e) ? e.status : "texted";
   // Refresh saved statuses without replacing an unsaved dropdown choice.
   if (key !== warrantyStatusOrder || els.wtStatus.value === warrantySavedStatus)
     els.wtStatus.value = savedStatus;
@@ -496,7 +502,7 @@ function renderWarranty() {
   els.wtLog.disabled = !wtAuth || !key || (!warrantyClaimed(e) && !dashClaimedLead(current));
   els.wtLog.textContent = unified
     ? "Save warranty status"
-    : e && !e.hidden ? "Update Warranty Tool" : "Log in Warranty Tool";
+    : warrantyClaimed(e) ? "Update Warranty Tool" : "Log in Warranty Tool";
 }
 
 // Everything the Warranty Tool keeps for an order. Blank fields are left out so they
@@ -509,6 +515,7 @@ function warrantyDetails() {
     customer: titleCase(l.customer),
     systemPrice: String(l.systemPrice || "").replace(/[^0-9.]/g, ""),
     watercooled: l.watercooled ? "yes" : "",
+    custom: l.custom ? "yes" : "",
     systems: l.systems || "",
   };
   return Object.fromEntries(Object.entries(d).filter(([, v]) => v));
@@ -527,8 +534,7 @@ async function logWarranty() {
     return false;
   }
   if (
-    e &&
-    !e.hidden &&
+    warrantyClaimed(e) &&
     e.uid !== wtAuth?.uid &&
     !confirm(
       `${titleCase(e.by)} already contacted this order. Change its status? It stays under ${titleCase(e.by)}'s name.`,
@@ -737,7 +743,7 @@ function renderScript() {
 function ensureCustomerLead() {
   if (!unified || current) return;
   const fields = customer.readCustomer();
-  if (!Object.entries(fields).some(([key, value]) => key !== "watercooled" && value.trim())) return;
+  if (!Object.entries(fields).some(([, value]) => typeof value === "string" && value.trim())) return;
   const lead = { ...blankLead(`WT-${crypto.randomUUID()}`), ...fields, type: "warranty" };
   show(lead);
 }
@@ -753,9 +759,10 @@ function showShopifyOrder(data) {
     order: data.order,
     url: data.url,
   };
-  for (const field of ["customer", "phone", "email", "systemPrice", "watercooled", "systems"]) {
-    const value = field === "watercooled" ? data[field] === "yes" : data[field] || "";
-    const old = field === "watercooled" ? previous?.[field] === "yes" : previous?.[field] || "";
+  for (const field of ["customer", "phone", "email", "systemPrice", "watercooled", "custom", "systems"]) {
+    const flag = field === "watercooled" || field === "custom";
+    const value = flag ? data[field] === "yes" : data[field] || "";
+    const old = flag ? previous?.[field] === "yes" : previous?.[field] || "";
     if (!sameOrder || !lead[field] || (previous?.order === data.order && lead[field] === old))
       lead[field] = value;
   }
@@ -802,14 +809,16 @@ if (unified) {
     });
   });
 }
-els.watercooled.addEventListener("change", () => {
-  ensureCustomerLead();
-  if (!current) return;
-  current.watercooled = els.watercooled.checked;
-  current.systems = "manual";
-  save();
-  renderScript();
-});
+for (const flag of ["watercooled", "custom"]) {
+  els[flag].addEventListener("change", () => {
+    ensureCustomerLead();
+    if (!current) return;
+    current[flag] = els[flag].checked;
+    current.systems = "manual";
+    save();
+    renderScript();
+  });
+}
 els.type.addEventListener("change", () => {
   if (!current) return;
   current.type = els.type.value;

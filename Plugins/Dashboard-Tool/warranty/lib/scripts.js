@@ -19,8 +19,8 @@ Your build includes a 1-year hardware warranty and lifetime phone & email suppor
 • 3 years – ${c.three}
 
 Plans can only be added before pickup or delivery. Would you like to review either option?`,
-    overcome: (c) => `Understood, ${c.first}. Your included coverage stays in place. If you'd like to revisit the optional plans before pickup or delivery, the 2-year is ${c.two}. Happy to answer any questions.`,
-    nudge: (c) => `Hi ${c.first}, ${c.rep} from META PCs. Any questions about the optional hardware coverage for your build? The 2-year plan is ${c.two} and the 3-year is ${c.three}, available before pickup or delivery.`,
+    overcome: (c) => `Totally understand, ${c.first}. One thing worth knowing first: a lot of companies only pay out what you paid at purchase, not what the part costs when it fails. People end up with half the cost of a new GPU, RAM or SSD and a PC that won't boot. Our plans cover eligible repairs or replacements through our US-based team. The 3-year is ${c.three} and can only be added before pickup or delivery. Happy to answer any questions.`,
+    nudge: (c) => `Hi ${c.first}, ${c.rep} from META PCs. Quick heads-up: optional hardware coverage for your build can only be added before pickup or delivery. 2 years is ${c.two}, 3 years is ${c.three}. Want me to set one up?`,
     accept: (c) => `Thanks, ${c.first}! I'll request the plan you chose. ${INVOICE(c)}`,
   },
   {
@@ -34,8 +34,8 @@ Your build comes with 1-year hardware coverage plus lifetime phone & email suppo
 • 3-year – ${c.three}
 
 Plans can only be added before pickup or delivery. Would either be useful for you, or would you prefer the included coverage?`,
-    overcome: (c) => `Totally fair, ${c.first}. The extra coverage is optional. If you'd like to compare the terms before pickup or delivery, I'm happy to help; otherwise we'll keep the included coverage.`,
-    nudge: (c) => `Hi ${c.first}, ${c.rep} from META PCs again. Have you had a chance to review the optional hardware plans? Any questions about the 2-year or 3-year coverage before pickup or delivery?`,
+    overcome: (c) => `Totally fair, ${c.first}. Just so you have the full picture: many warranties only refund what the part cost at purchase, so when a GPU or SSD dies years later, people get maybe half of what a replacement costs and a PC that's a brick until they cover the rest. Our coverage handles eligible repairs or replacements through our US team instead. 3 years is ${c.three}, available until pickup or delivery. Want me to add it?`,
+    nudge: (c) => `Hi ${c.first}, ${c.rep} from META PCs again. Your build is almost ready, and this is the last window to add longer hardware coverage: ${c.two} for 2 years or ${c.three} for 3. Want me to add one, or keep the included coverage?`,
     accept: (c) => `Thanks, ${c.first}! I'll send the request for your selected plan. ${INVOICE(c)}`,
   },
   {
@@ -49,8 +49,8 @@ Before pickup or delivery, you can choose optional hardware coverage for covered
 • 3 years – ${c.three}
 
 Want to hear more about either plan? Keeping the included coverage is fine too.`,
-    overcome: (c) => `No worries at all, ${c.first}! We'll stick with the included coverage. If you change your mind before pickup or delivery, just reply. Enjoy the new setup! 🎮`,
-    nudge: (c) => `Hey ${c.first}! ${c.rep} at META PCs. Just checking whether you have any questions about the optional 2-year or 3-year hardware plans before pickup or delivery.`,
+    overcome: (c) => `No worries, ${c.first}! One quick tip before you decide ?? A lot of companies only pay back what you originally paid, not what a new GPU, RAM or SSD costs when it fails. Folks end up with half the money and a PC that won't turn on. Ours covers eligible repairs or replacements through our US team. 3 years is ${c.three}, and it has to be added before pickup or delivery. Just reply if you want it! ??`,
+    nudge: (c) => `Hey ${c.first}! ${c.rep} at META PCs ?? Your new rig is almost ready! Last call to add extra hardware coverage: ${c.two} for 2 years or ${c.three} for 3. Want me to add one before pickup or delivery?`,
     accept: (c) => `Sounds good, ${c.first}! I'll request that plan for you. ${INVOICE(c)}`,
   },
   {
@@ -62,8 +62,8 @@ Want to hear more about either plan? Keeping the included coverage is fine too.`
 • 3 yr – ${c.three}
 
 Interested in either plan?`,
-    overcome: (c) => `Understood, ${c.first}. We'll keep the included coverage. Reply before pickup or delivery if you'd like to revisit the options.`,
-    nudge: (c) => `Hi ${c.first}, ${c.rep} from META PCs. Any questions about optional hardware coverage? 2 yr – ${c.two}; 3 yr – ${c.three}. Available before pickup or delivery.`,
+    overcome: (c) => `Understood, ${c.first}. Worth knowing: many warranties only pay what you paid at purchase, not today's replacement cost, which can leave you short on a GPU, RAM or SSD. Ours covers eligible repairs or replacements. 3 yr ? ${c.three}, available until pickup or delivery.`,
+    nudge: (c) => `Hi ${c.first}, ${c.rep} from META PCs. Last chance for extra hardware coverage before pickup or delivery: 2 yr ? ${c.two}; 3 yr ? ${c.three}. Want one added?`,
     accept: (c) => `Thanks, ${c.first}! I'll request your selected plan. ${INVOICE(c)}`,
   },
   {
@@ -77,8 +77,8 @@ Optional hardware plans cover eligible repairs or replacements through our US-ba
 • 3 years – ${c.three}
 
 Would you like to compare either plan with your included coverage?`,
-    overcome: (c) => `I get it, ${c.first}. The extra coverage isn't for everyone. We'll keep the included coverage, and I can answer any questions before pickup or delivery.`,
-    nudge: (c) => `Hi ${c.first}, ${c.rep} from META PCs. Would it help to compare the optional 2-year and 3-year hardware plans with your included coverage before pickup or delivery?`,
+    overcome: (c) => `I get it, ${c.first}. One thing to factor in: a lot of companies only pay out what you paid at purchase, not what the part costs at the time of the claim. People end up with half the cost of a new GPU, RAM or SSD and a system that won't run. Our plans cover eligible repairs or replacements through our US-based team, so ${c.build} stays protected. 3 years is ${c.three}, available until pickup or delivery.`,
+    nudge: (c) => `Hi ${c.first}, ${c.rep} from META PCs. You've put real money into ${c.build}. For ${c.three}, 3 years of hardware coverage keeps it protected, or ${c.two} for 2 years. It can only be added before pickup or delivery. Want me to add it?`,
     accept: (c) => `Thanks, ${c.first}! I'll request the coverage you selected. ${INVOICE(c)}`,
   },
   {
@@ -92,8 +92,8 @@ Your build includes lifetime phone & email support. If you'd like longer hardwar
 • 3 years – ${c.three}
 
 Would either plan be helpful for you?`,
-    overcome: (c) => `Totally fair, ${c.first}. Your included coverage and lifetime support remain either way. Happy to answer any questions about the optional plans before pickup or delivery.`,
-    nudge: (c) => `Hi ${c.first}, ${c.rep} from META PCs. Any questions about how the optional hardware plans differ from your included coverage? We can review them before pickup or delivery.`,
+    overcome: (c) => `Totally fair, ${c.first}. Just one thing so there are no surprises later: many warranties only pay what the part cost when you bought it, so a failed GPU, RAM or SSD can leave you covering half the replacement and stuck with a PC that won't boot. Ours covers eligible repairs or replacements through our US team. 3 years is ${c.three}, available until pickup or delivery. Happy to answer any questions.`,
+    nudge: (c) => `Hi ${c.first}, ${c.rep} from META PCs. Before your build heads out, want to lock in extra peace of mind? 2 years of hardware coverage is ${c.two}, 3 years is ${c.three}. It can only be added before pickup or delivery.`,
     accept: (c) => `Thanks, ${c.first}! I'll request the plan you chose. ${INVOICE(c)}`,
   },
   {
@@ -107,8 +107,8 @@ The plans cover eligible repairs or replacements for the CPU, GPU, RAM, motherbo
 • 3 years – ${c.three}
 
 Would you like to review the terms for either plan?`,
-    overcome: (c) => `Fair enough, ${c.first}. You can keep the included coverage. If you'd like to compare the covered components or repair terms before pickup or delivery, I'm happy to help.`,
-    nudge: (c) => `Hi ${c.first}, ${c.rep} at META PCs. Any questions about the components or repairs covered by the optional 2-year and 3-year hardware plans? They can be added before pickup or delivery.`,
+    overcome: (c) => `Fair enough, ${c.first}. A tech tip before you decide: many warranties only reimburse the original purchase price, not what a replacement GPU, RAM or SSD costs when it fails. That often covers about half, and the PC is down until you pay the rest. Our plans cover eligible repairs or replacements for the CPU, GPU, RAM, motherboard, storage and PSU through our US team. 3 years is ${c.three}, available until pickup or delivery.`,
+    nudge: (c) => `Hi ${c.first}, ${c.rep} at META PCs. GPUs, SSDs and PSUs are the parts most likely to need service down the road. Want them covered? 2 years is ${c.two}, 3 years is ${c.three}, available before pickup or delivery.`,
     accept: (c) => `Sounds good, ${c.first}! I'll request your chosen plan. ${INVOICE(c)}`,
   },
   {
@@ -122,8 +122,8 @@ If you plan to keep it for a while, these optional hardware plans provide longer
 • 3 years – ${c.three}
 
 Would either fit your plans, or would you prefer to keep the included coverage?`,
-    overcome: (c) => `Makes sense, ${c.first}. We'll stay with the included coverage. If you'd like to revisit the optional plans before pickup or delivery, just let me know.`,
-    nudge: (c) => `Hi ${c.first}, ${c.rep} from META PCs. Would it help to compare the optional 2-year and 3-year hardware plans with how long you expect to keep this build? Happy to help before pickup or delivery.`,
+    overcome: (c) => `Makes sense, ${c.first}. One question worth asking about any warranty: does it pay what you paid, or what the part costs when it fails? A lot of companies only pay the original price, so people get half the cost of a new GPU, RAM or SSD and a system that won't run. Ours covers eligible repairs or replacements through our US team. 3 years is ${c.three}, available until pickup or delivery.`,
+    nudge: (c) => `Hi ${c.first}, ${c.rep} from META PCs. If you plan to keep this build for a few years, the 3-year hardware plan (${c.three}) covers most of that time. 2 years is ${c.two}. Either can be added before pickup or delivery. Want one?`,
     accept: (c) => `Thanks, ${c.first}! I'll request the plan you chose. ${INVOICE(c)}`,
   },
   {
@@ -137,8 +137,8 @@ Before pickup or delivery, you can choose optional hardware coverage for eligibl
 • 3-year coverage – ${c.three}
 
 Please let me know if you'd like to review either plan or keep your included coverage.`,
-    overcome: (c) => `Understood, ${c.first}, and thank you for letting me know. Please note that coverage can only be added before pickup or delivery, so should you change your mind, simply reply before then and I'll take care of it. Otherwise, we hope you thoroughly enjoy your new system.`,
-    nudge: (c) => `Hello ${c.first}, ${c.rep} with META PCs. Please let me know if you have questions about the optional 2-year or 3-year hardware coverage before pickup or delivery.`,
+    overcome: (c) => `Understood, ${c.first}, and thank you for letting me know. One consideration before you decide: many companies only pay out the original purchase price, not the cost of the part at the time of the claim. Customers are often left with half the cost of a new GPU, RAM or SSD and a system that won't operate. Our coverage provides eligible repairs or replacements through our US-based team. The 3-year plan is ${c.three} and can only be added before pickup or delivery. Simply reply and I'll take care of it.`,
+    nudge: (c) => `Hello ${c.first}, ${c.rep} with META PCs. A courtesy reminder that optional hardware coverage can only be added before pickup or delivery: 2 years for ${c.two} or 3 years for ${c.three}. Please let me know if you'd like either plan added.`,
     accept: (c) => `Thank you, ${c.first}. I'll request your selected coverage. ${INVOICE(c)}`,
   },
 ];

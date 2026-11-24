@@ -68,14 +68,22 @@ async function init() {
   priceField.querySelector("#systemPrice").title = "Combined PC prices, excluding accessories. Multi-PC warranties are quoted per PC and added together.";
   const watercooled = form.querySelector(".toggle");
   watercooled.querySelector("input").setAttribute("aria-label", "Watercooled");
+  const customBuild = form.querySelector("#custom").closest(".toggle");
+  customBuild.querySelector("input").setAttribute("aria-label", "Custom build");
   priceField.querySelector("span").textContent = "Warranty pricing";
-  priceField.prepend(watercooled);
+  priceField.prepend(watercooled, customBuild);
   const fixedPrice = document.createElement("p");
   fixedPrice.id = "fixedWarrantyPrice";
   fixedPrice.className = "hint";
   fixedPrice.textContent = "Watercooled: 2 years $499 / 3 years $799 per PC";
   fixedPrice.hidden = true;
   priceField.append(fixedPrice);
+  const customPrice = document.createElement("p");
+  customPrice.id = "customWarrantyPrice";
+  customPrice.className = "hint";
+  customPrice.textContent = "Custom build: 3 years $270 per PC";
+  customPrice.hidden = true;
+  priceField.append(customPrice);
 
   const scriptCard = outreach.querySelector("#script").closest(".card");
   scriptCard.classList.add("outreach-scripts");

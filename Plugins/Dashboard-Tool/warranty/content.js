@@ -106,7 +106,7 @@
       if (b.textContent !== text) b.textContent = text;
       b.title = pending.has(id)
         ? "Saving this order. Other orders remain available."
-        : contacted ? `${c.by} · ${new Date(c.ts).toLocaleString()}${c.note ? "\n" + c.note : ""}`
+        : contacted ? `${c.by} · ${new Date(c.ts).toLocaleString()}${c.note ? "\n" + c.note : ""}${c.hidden ? "\nArchived in the Warranty Tracker; changing status restores it." : ""}`
           : CLAIM_ON_DASH;
       if (signedIn && !el.hasAttribute("href")) enrichFromPage(order);
     }
@@ -124,7 +124,8 @@
   const PC_LINE = /\bSKU\s*\n\s*((?:(?:RTS|CONFIG)\/\S+|CUSTOM\/PC))\s*\n(?:(?!\bSKU\b)[^$])*?\$\s?([\d,]+(?:\.\d+)?)(?:(?!\bSKU\b)[^\u00d7])*?\u00d7\s*(\d+)/gi;
 
   // Every PC on the order, one entry per unit: RTS/* is a ready-to-ship build, CONFIG/* a custom
-  // build (CONFIG/WC = watercooled); CUSTOM/PC is also a system.
+  // build (CONFIG/WC = watercooled); CUSTOM/PC is also a custom system.
+  const isCustomSku = (sku) => /^(?:CONFIG\/|CUSTOM\/PC$)/.test(sku);
   function orderSystems() {
     const text = root().innerText || "";
     // The summary card renders after the line items, so wait for it to avoid reading half an order.
@@ -158,9 +159,11 @@
     const data = { customer, phone: phone.trim(), email };
     const pcs = orderSystems();
     if (pcs?.length) {
-      data.systems = pcs.map((p) => p.amount).join(",");
+      // "c" marks a custom build so mixed orders are quoted per PC.
+      data.systems = pcs.map((p) => `${isCustomSku(p.sku) ? "c" : ""}${p.amount}`).join(",");
       data.systemPrice = String(Math.round(pcs.reduce((s, p) => s + p.amount, 0) * 100) / 100);
       data.watercooled = pcs.some((p) => p.sku === "CONFIG/WC") ? "yes" : "";
+      data.custom = pcs.every((p) => isCustomSku(p.sku)) ? "yes" : "";
     }
     return data;
   }
@@ -178,15 +181,17 @@
     try {
       const result = await send("enrich", { order, ...data });
       if (!result.ok) throw new Error(result.error || "Could not save Shopify order details.");
+      const saved = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY]?.items?.[id] || c;
       if (location.href !== url) return;
       const details = { ...data };
       for (const field of ["customer", "phone", "email"]) {
-        if (c[field]) details[field] = c[field];
+        if (saved[field]) details[field] = saved[field];
       }
-      if (c.systems) {
-        details.systems = c.systems;
-        details.systemPrice = c.systemPrice;
-        details.watercooled = c.watercooled || "";
+      if (saved.systems) {
+        details.systems = saved.systems;
+        details.systemPrice = saved.systemPrice;
+        details.watercooled = saved.watercooled || "";
+        details.custom = saved.custom || "";
       }
       await chrome.storage.local.set({ [PAGE_KEY]: { order, url, ...details } });
     } catch (error) {
@@ -262,10 +267,12 @@
     title.className = "wt-menu-title";
     title.textContent = contacted ? `${order} — ${c.by}` : order;
     menu.append(title);
-    if (!contacted) {
+    if (!contacted || c.hidden) {
       const note = document.createElement("div");
       note.className = "wt-menu-note";
-      note.textContent = CLAIM_ON_DASH;
+      note.textContent = contacted
+        ? "Archived in the Warranty Tracker. Changing its status restores it."
+        : CLAIM_ON_DASH;
       menu.append(note);
     }
     const add = (label, fn) => {

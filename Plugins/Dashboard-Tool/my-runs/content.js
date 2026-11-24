@@ -338,7 +338,9 @@
   }
 
   function sync() {
-    const frame = /^\/my-runs(?:\/|$)/.test(location.pathname) && document.querySelector("[data-myruns-frame]");
+    const frame = /^\/my-runs(?:\/|$)/.test(location.pathname)
+      ? document.querySelector("[data-myruns-frame]")
+      : null;
     const nav = frame?.querySelector('.modnav[aria-label="My runs"]');
     if (mounted && (mounted.frame !== frame || !mounted.tab.isConnected || mounted.path !== location.pathname)) {
       mounted.close();

@@ -5,7 +5,13 @@ const CFG = self.WARRANTY_CONFIG;
 const AUTH_KEY = "wtAuth";
 const CACHE_KEY = "wtContacts";
 const PRIVATE_KEY = "wtPrivate"; // customer name / phone / email / price: stored only on this device
-const PRIVATE_FIELDS = ["phone", "email", "customer", "systemPrice", "watercooled", "systems"];
+const KNOWN_KEY = "wtKnownContacts";
+const PRIVATE_FIELDS = ["phone", "email", "customer", "systemPrice", "watercooled", "custom", "systems"];
+const PRICING_FIELDS = ["systemPrice", "watercooled", "custom", "systems"];
+const DAY_MS = 24 * 60 * 60 * 1000;
+const AUTO_ARCHIVE_MS = 30 * DAY_MS;
+const ARCHIVE_RETENTION_MS = 60 * DAY_MS;
+const AUTO_ARCHIVE_STATUSES = new Set(["texted", "called", "emailed"]);
 const STATUSES = [
   "texted",
   "called",
@@ -35,8 +41,8 @@ const STATUS_LABEL = {
 const VARIANT_IDS = ["v1", "v2", "v3", "v4", "v5", "v6", "v8", "v9", "v10"];
 const randomVariant = () =>
   VARIANT_IDS[Math.floor(Math.random() * VARIANT_IDS.length)];
-// v5 refreshes caches so newly recognized statuses are decoded from Firestore.
-const CACHE_VERSION = 5;
+// Refresh older caches to load retention timestamps and reconcile deleted records.
+const CACHE_VERSION = 6;
 const CONFLICT_CODES = ["ALREADY_EXISTS", "FAILED_PRECONDITION"];
 
 const DOCS = () =>
@@ -119,7 +125,13 @@ async function signUp({ email, password, name }) {
 }
 
 async function signOut() {
-  await chrome.storage.local.remove([AUTH_KEY, CACHE_KEY, SYNC_KEY]);
+  await localWrite(async () => {
+    const stored = await chrome.storage.local.get([CACHE_KEY, KNOWN_KEY]);
+    const previous = Array.isArray(stored[KNOWN_KEY]) ? stored[KNOWN_KEY] : [];
+    const known = new Set([...previous, ...Object.keys(stored[CACHE_KEY]?.items || {})]);
+    if (known.size) await chrome.storage.local.set({ [KNOWN_KEY]: [...known] });
+    await chrome.storage.local.remove([AUTH_KEY, CACHE_KEY, SYNC_KEY, FULL_SYNC_KEY]);
+  });
 }
 
 async function validToken() {
@@ -175,6 +187,7 @@ async function api(url, options = {}) {
 function decode(doc) {
   const f = doc.fields || {};
   const s = (k) => f[k]?.stringValue || "";
+  const status = s("status");
   return {
     id: doc.name.split("/").pop(),
     order: s("order"),
@@ -183,7 +196,8 @@ function decode(doc) {
     customer: s("customer"),
     systemPrice: s("systemPrice"),
     note: s("note"),
-    status: STATUSES.includes(s("status")) ? s("status") : "texted",
+    status: STATUSES.includes(status) ? status : "texted",
+    statusValid: STATUSES.includes(status),
     by: s("by"),
     uid: s("uid"),
     hidden: f.hidden?.booleanValue === true,
@@ -191,6 +205,9 @@ function decode(doc) {
     overcome: f.overcome?.booleanValue === true,
     nudged: f.nudged?.booleanValue === true,
     ts: Number(f.ts?.integerValue || 0),
+    statusSince: Number(f.statusSince?.integerValue || 0),
+    archivedAt: Number(f.archivedAt?.integerValue || 0),
+    retentionUpdatedAt: Number(f.retentionUpdatedAt?.integerValue || 0),
     updatedAt: Number(f.updatedAt?.integerValue || 0),
     updateTime: doc.updateTime || "",
   };
@@ -210,6 +227,9 @@ function encode(c) {
       overcome: { booleanValue: !!c.overcome },
       nudged: { booleanValue: !!c.nudged },
       ts: { integerValue: String(c.ts) },
+      statusSince: { integerValue: String(c.statusSince || 0) },
+      archivedAt: { integerValue: String(c.archivedAt || 0) },
+      retentionUpdatedAt: { integerValue: String(c.retentionUpdatedAt || 0) },
       updatedAt: { integerValue: String(c.updatedAt || Date.now()) },
     },
   };
@@ -226,22 +246,27 @@ const SHARED_FIELDS = [
   "overcome",
   "nudged",
   "ts",
+  "statusSince",
+  "archivedAt",
   "updatedAt",
+  "retentionUpdatedAt",
 ];
 
 // updateMask keeps legacy phone/customer/price in Firestore untouched until the admin scrubs them.
 // expect: null = document must not exist yet; string = server updateTime we last saw.
 // Firestore rejects the write if the precondition fails, so a stale view can't overwrite a teammate.
 async function writeDoc(contact, { fields = SHARED_FIELDS, expect } = {}) {
+  const writeFields = fields.includes("updatedAt") && !fields.includes("retentionUpdatedAt")
+    ? [...fields, "retentionUpdatedAt"] : fields;
   const q = new URLSearchParams();
-  fields.forEach((f) => q.append("updateMask.fieldPaths", f));
+  writeFields.forEach((f) => q.append("updateMask.fieldPaths", f));
   if (expect === null) q.set("currentDocument.exists", "false");
   else if (expect) q.set("currentDocument.updateTime", expect);
-  const all = encode(contact).fields;
+  const all = encode({ ...contact, retentionUpdatedAt: contact.updatedAt }).fields;
   const doc = await api(`${DOCS()}/${encodeURIComponent(contact.id)}?${q}`, {
     method: "PATCH",
     body: JSON.stringify({
-      fields: Object.fromEntries(fields.map((f) => [f, all[f]])),
+      fields: Object.fromEntries(writeFields.map((f) => [f, all[f]])),
     }),
   });
   return doc?.updateTime || "";
@@ -280,8 +305,12 @@ function localWrite(update) {
 }
 
 // Only fields present in data are overwritten, so callers that don't know them keep the saved values.
-async function savePrivate(id, data) {
+async function savePrivate(id, data, { requireContact = false } = {}) {
   return localWrite(async () => {
+    if (requireContact) {
+      const cache = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY];
+      if (!cache?.items?.[id]) throw new Error("Order no longer exists. Refresh and try again.");
+    }
     const priv = await getPrivate();
     const next = { ...priv[id] };
     for (const f of PRIVATE_FIELDS)
@@ -297,19 +326,24 @@ async function enrich({ order, ...data }) {
   const id = orderKey(order);
   if (!id) return 0;
   const add = await localWrite(async () => {
+    const cache = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY];
+    if (!cache?.items?.[id]) throw new Error("Order no longer exists. Refresh and try again.");
     const priv = await getPrivate();
     const cur = priv[id] || {};
     const next = {};
+    // Orders scraped before custom-build pricing get their per-PC SKU types filled once.
+    const legacyScrape = cur.systems && cur.systems !== "manual" && !("custom" in cur) && data.systems;
     for (const f of PRIVATE_FIELDS) {
-      if (cur.systems && ["systemPrice", "watercooled", "systems"].includes(f)) continue;
+      if (cur.systems && PRICING_FIELDS.includes(f) && !legacyScrape) continue;
       const v = String(data[f] || "").trim();
-      if (v && !cur[f]) next[f] = v;
+      if (v && (!cur[f] || (legacyScrape && f === "systems"))) next[f] = v;
     }
     // Per-PC prices replace the old subtotal only on the first successful scrape.
     // "manual" keeps subsequent scrapes from overwriting a hand-edited price/flag.
     if (next.systems) {
       next.systemPrice = String(data.systemPrice || "").trim();
       next.watercooled = data.watercooled === "yes" ? "yes" : "";
+      next.custom = data.custom === "yes" ? "yes" : "";
     }
     if (Object.keys(next).length) {
       priv[id] = { ...cur, ...next };
@@ -335,6 +369,7 @@ async function mergePrivate(list) {
     customer: "",
     systemPrice: "",
     watercooled: "",
+    custom: "",
     systems: "",
     ...priv[c.id],
   }));
@@ -364,8 +399,10 @@ async function importPrivate({ rows }) {
 }
 
 const SYNC_KEY = "wtSyncAt";
+const FULL_SYNC_KEY = "wtFullSyncAt";
 const SYNC_OVERLAP_MS = 2 * 60 * 1000; // tolerate clock skew between teammates
 const MIN_REFRESH_MS = 60 * 1000;
+const FULL_REFRESH_MS = DAY_MS;
 let inflight = null;
 
 async function fullFetch() {
@@ -405,34 +442,65 @@ async function changedSince(since) {
 
 // Incremental: after the first full load, only documents changed since the last sync are read.
 async function doRefresh(force) {
-  const store = await chrome.storage.local.get([CACHE_KEY, SYNC_KEY]);
+  const store = await chrome.storage.local.get([CACHE_KEY, SYNC_KEY, FULL_SYNC_KEY]);
   const syncedAt = store[SYNC_KEY] || 0;
   const cached = store[CACHE_KEY];
   if (!force && cached && Date.now() - syncedAt < MIN_REFRESH_MS) return;
   const startedAt = Date.now();
-  if (!cached || !syncedAt || cached.v !== CACHE_VERSION) {
-    await saveRefresh(Object.values(await fullFetch()), startedAt, true);
-    return;
+  const initialVersions = Object.fromEntries(
+    Object.entries(cached?.items || {}).map(([id, record]) => [id, record.updateTime]),
+  );
+  const expiredArchive = Object.values(cached?.items || {}).some((record) =>
+    record.statusValid !== false && record.hidden && record.status !== "not_contacted" && record.status !== "paid" &&
+    record.archivedAt > 0 && startedAt - record.archivedAt >= ARCHIVE_RETENTION_MS,
+  );
+  const full = !cached || !syncedAt || cached.v !== CACHE_VERSION ||
+    startedAt - (store[FULL_SYNC_KEY] || 0) >= FULL_REFRESH_MS || expiredArchive;
+  if (full) {
+    await saveRefresh(Object.values(await fullFetch()), startedAt, true, initialVersions);
+  } else {
+    const changed = await changedSince(syncedAt - SYNC_OVERLAP_MS);
+    await saveRefresh(changed, startedAt, false, initialVersions);
   }
-  const changed = await changedSince(syncedAt - SYNC_OVERLAP_MS);
-  await saveRefresh(changed, startedAt, false);
+  await applyRetention(startedAt);
 }
 
-function saveRefresh(records, startedAt, full) {
+function saveRefresh(records, startedAt, full, initialVersions) {
   return localWrite(async () => {
     const stored = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY];
     const current = stored?.items || {};
     const items = full
-      ? Object.fromEntries(Object.entries(current).filter(([, c]) => c.updatedAt >= startedAt))
+      ? Object.fromEntries(Object.entries(current).filter(([id, c]) =>
+        !Object.hasOwn(initialVersions, id) || initialVersions[id] !== c.updateTime))
       : { ...current };
     for (const record of records) {
       const saved = current[record.id];
-      items[record.id] = saved?.updateTime > record.updateTime ? saved : record;
+      if (Object.hasOwn(initialVersions, record.id) && !saved) continue;
+      const locallyChanged = saved && (!Object.hasOwn(initialVersions, record.id) ||
+        initialVersions[record.id] !== saved.updateTime);
+      items[record.id] = saved && (locallyChanged || saved.updateTime > record.updateTime)
+        ? saved : record;
     }
     const priv = await getPrivate();
+    const known = full ? (await chrome.storage.local.get(KNOWN_KEY))[KNOWN_KEY] : [];
+    const knownIds = Array.isArray(known) ? known : [];
+    let privateChanged = false;
+    if (full) {
+      for (const id of new Set([...Object.keys(current), ...knownIds])) {
+        if (!items[id] && Object.hasOwn(priv, id)) {
+          delete priv[id];
+          privateChanged = true;
+        }
+      }
+    }
     for (const id of Object.keys(items))
       if (priv[id]) Object.assign(items[id], priv[id]);
     const update = { [SYNC_KEY]: startedAt };
+    if (full) {
+      update[FULL_SYNC_KEY] = startedAt;
+      if (knownIds.length) update[KNOWN_KEY] = [];
+    }
+    if (privateChanged) update[PRIVATE_KEY] = priv;
     if (full || JSON.stringify(items) !== JSON.stringify(current))
       update[CACHE_KEY] = { items, fetchedAt: startedAt, v: CACHE_VERSION };
     await chrome.storage.local.set(update);
@@ -455,6 +523,98 @@ async function patchCache(fn = () => {}) {
       if (priv[id]) Object.assign(cur.items[id], priv[id]);
     await chrome.storage.local.set({ [CACHE_KEY]: cur });
   });
+}
+
+async function forgetContact(id, expect) {
+  await localWrite(async () => {
+    const cache = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY];
+    if (!cache?.items?.[id] || cache.items[id].updateTime !== expect) return;
+    delete cache.items[id];
+    const priv = await getPrivate();
+    delete priv[id];
+    await chrome.storage.local.set({ [CACHE_KEY]: cache, [PRIVATE_KEY]: priv });
+  });
+}
+
+async function freshForChange(id, expect) {
+  try {
+    return await fetchOne(id);
+  } catch (error) {
+    if (error.code !== "NOT_FOUND") throw error;
+    await forgetContact(id, expect);
+    throw new Error("This tracker entry no longer exists. Refresh and claim it again from Dash if needed.");
+  }
+}
+
+async function conditionalPatch(cur, changes, fields) {
+  if (!cur.updateTime) throw new Error("Cannot verify this order's latest version. Refresh and try again.");
+  const contact = { ...cur, ...changes, retentionUpdatedAt: changes.updatedAt };
+  contact.updateTime = await writeDoc(contact, { fields, expect: cur.updateTime });
+  await patchCache((items) => {
+    if (items[cur.id]?.updateTime === cur.updateTime) items[cur.id] = contact;
+  });
+}
+
+const validTime = (value) => Number.isSafeInteger(value) && value > 0;
+const retentionTracked = (cur) => validTime(cur.updatedAt) && cur.retentionUpdatedAt === cur.updatedAt;
+
+function statusStart(cur, now) {
+  if (validTime(cur.statusSince) && retentionTracked(cur))
+    return cur.statusSince;
+  return validTime(cur.updatedAt) ? cur.updatedAt : now;
+}
+
+async function applyRetention(now) {
+  const items = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY]?.items || {};
+  for (const cur of Object.values(items)) {
+    if (cur.statusValid === false) {
+      console.warn("[Dashboard Tool] Skipping retention for an unsupported warranty status:", cur.id);
+      continue;
+    }
+    if (cur.status === "not_contacted") continue;
+    const statusSince = statusStart(cur, now);
+    let changes;
+    let fields;
+    let remove = false;
+    if (cur.hidden && cur.status === "paid") {
+      changes = { hidden: false, archivedAt: 0, statusSince, updatedAt: now };
+      fields = ["hidden", "archivedAt", "statusSince", "updatedAt"];
+    } else if (cur.hidden && (!validTime(cur.archivedAt) || !retentionTracked(cur))) {
+      // Older clients cannot maintain archive dates; give those records a fresh grace period.
+      changes = { archivedAt: now, statusSince, updatedAt: now };
+      fields = ["archivedAt", "statusSince", "updatedAt"];
+    } else if (cur.hidden && now - cur.archivedAt >= ARCHIVE_RETENTION_MS) {
+      remove = true;
+    } else if (!cur.hidden && AUTO_ARCHIVE_STATUSES.has(cur.status) &&
+      now - statusSince >= AUTO_ARCHIVE_MS) {
+      changes = { hidden: true, archivedAt: now, statusSince, updatedAt: now };
+      fields = ["hidden", "archivedAt", "statusSince", "updatedAt"];
+    } else if (!cur.hidden && AUTO_ARCHIVE_STATUSES.has(cur.status) &&
+      !cur.statusSince && !cur.updatedAt) {
+      changes = { statusSince: now, updatedAt: now };
+      fields = ["statusSince", "updatedAt"];
+    } else {
+      continue;
+    }
+    try {
+      if (remove) {
+        if (!cur.updateTime) throw new Error("Cannot verify an archived order's latest version.");
+        const q = new URLSearchParams({ "currentDocument.updateTime": cur.updateTime });
+        await api(`${DOCS()}/${encodeURIComponent(cur.id)}?${q}`, { method: "DELETE" });
+        await forgetContact(cur.id, cur.updateTime);
+      } else {
+        await conditionalPatch(cur, changes, fields);
+      }
+    } catch (error) {
+      if (!CONFLICT_CODES.includes(error.code) && error.code !== "NOT_FOUND") throw error;
+      try {
+        await fetchOne(cur.id);
+      } catch (freshError) {
+        if (freshError.code !== "NOT_FOUND") throw freshError;
+        await forgetContact(cur.id, cur.updateTime);
+      }
+    }
+  }
 }
 
 const DASH_CLAIM_REQUIRED =
@@ -481,7 +641,7 @@ async function upsert(input, sender) {
   let prev = expect === null ? null : cached;
   if (expect !== null && (!expect || cached?.updateTime !== expect)) {
     // Cached before updateTime was tracked, or the cache moved on: compare against the live doc.
-    const fresh = await fetchOne(id);
+    const fresh = await freshForChange(id, cached?.updateTime);
     const stale = expect
       ? fresh.updateTime !== expect
       : cached && (fresh.status !== cached.status || fresh.uid !== cached.uid);
@@ -490,16 +650,14 @@ async function upsert(input, sender) {
     expect = fresh.updateTime;
   }
   // New or unclaimed orders can only be claimed from the side panel with a Dash Pound list lead open.
-  const claimed = prev && !prev.hidden && prev.status !== "not_contacted";
+  const claimed = prev && prev.status !== "not_contacted";
   if (!claimed && (sender?.tab || !/^WL-\d+$/.test(input.lead || "")))
     throw new Error(DASH_CLAIM_REQUIRED);
   const now = Date.now();
-  // The original texter keeps the order when a teammate changes its status; only a hidden
-  // (removed) record can be claimed by someone else.
-  const owner =
-    prev && !prev.hidden
-      ? prev
-      : { by: a.name, uid: a.uid, ts: now, note: "", variant: "", overcome: false, nudged: false };
+  // Archiving does not release a claim or transfer ownership.
+  const owner = claimed
+    ? prev
+    : { by: a.name, uid: a.uid, ts: now, note: "", variant: "", overcome: false, nudged: false };
   // New contacts get a random script variant; existing ones keep theirs so outcomes stay attributed.
   const variant = VARIANT_IDS.includes(owner.variant)
     ? owner.variant
@@ -513,6 +671,7 @@ async function upsert(input, sender) {
     order: String(input.order).trim(),
     note: input.note ?? owner.note ?? "",
     status,
+    statusValid: true,
     variant,
     overcome: !!(input.overcome ?? owner.overcome),
     nudged: !!(input.nudged ?? owner.nudged),
@@ -520,13 +679,17 @@ async function upsert(input, sender) {
     uid: owner.uid,
     ts: owner.ts,
     hidden: false,
+    statusSince: !claimed || prev.status !== status || prev.hidden
+      ? now : statusStart(prev, now),
+    archivedAt: 0,
+    retentionUpdatedAt: now,
     updatedAt: now,
   };
   try {
     contact.updateTime = await writeDoc(contact, { expect });
   } catch (e) {
-    if (!CONFLICT_CODES.includes(e.code)) throw e;
-    throw await conflictError(await fetchOne(id), a);
+    if (!CONFLICT_CODES.includes(e.code) && e.code !== "NOT_FOUND") throw e;
+    throw await conflictError(await freshForChange(id, cached?.updateTime), a);
   }
   // Blank fields from callers that don't know a value (Shopify badge, Pound List) keep the saved one.
   const known = Object.fromEntries(
@@ -539,6 +702,7 @@ async function upsert(input, sender) {
     customer: "",
     systemPrice: "",
     watercooled: "",
+    custom: "",
     systems: "",
     ...priv,
     ...contact,
@@ -556,6 +720,7 @@ async function updateDetails({
   customer,
   systemPrice,
   watercooled,
+  custom,
   systems,
 }) {
   const cur = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY]?.items?.[
@@ -568,9 +733,11 @@ async function updateDetails({
     customer,
     systemPrice,
     watercooled: watercooled || "",
+    custom: custom || "",
     systems,
-  });
+  }, { requireContact: true });
   await patchCache((items) => {
+    if (!items[id]) throw new Error("Order no longer exists. Refresh and try again.");
     items[id] = { ...items[id], ...priv };
   });
 }
@@ -578,10 +745,13 @@ async function updateDetails({
 // Records which script variant was sent and whether the declined / no-answer follow-ups went out.
 // Only these fields are written, so a teammate's newer status is never reverted.
 async function markScript({ id, variant, overcome, nudged }) {
-  const cur = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY]?.items?.[
+  const a = await getAuth();
+  if (!a) throw new Error("Not signed in.");
+  let cur = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY]?.items?.[
     id
   ];
   if (!cur) throw new Error("Order not found. Refresh and try again.");
+  if (!cur.updateTime) cur = await freshForChange(id, cur.updateTime);
   const fields = ["updatedAt"];
   const contact = { ...cur, updatedAt: Date.now() };
   if (VARIANT_IDS.includes(variant) && !cur.variant) {
@@ -597,51 +767,74 @@ async function markScript({ id, variant, overcome, nudged }) {
     fields.push("nudged");
   }
   if (fields.length === 1) return;
-  contact.updateTime = await writeDoc(contact, { fields });
-  await patchCache((items) => {
-    items[id] = contact;
-  });
+  const statusSince = statusStart(cur, contact.updatedAt);
+  if (cur.statusSince !== statusSince || cur.retentionUpdatedAt !== cur.updatedAt) {
+    contact.statusSince = statusSince;
+    fields.push("statusSince");
+  }
+  await saveAction(cur, contact, fields, a);
 }
 
-// Soft delete: the record stays so the order still shows as contacted on Shopify.
-// Only hidden/updatedAt are written, so a teammate's newer status is never reverted.
-async function remove(id) {
-  const cur = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY]?.items?.[
-    id
-  ];
-  if (!cur) throw new Error("Order not found. Refresh and try again.");
-  const contact = { ...cur, hidden: true, updatedAt: Date.now() };
-  contact.updateTime = await writeDoc(contact, {
-    fields: ["hidden", "updatedAt"],
-  });
-  await patchCache((items) => {
-    items[id] = contact;
-  });
+async function actionContact(id, expect, a) {
+  const cached = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY]?.items?.[id];
+  if (!cached) throw new Error("Order not found. Refresh and try again.");
+  const cur = !expect || cached.updateTime !== expect
+    ? await freshForChange(id, cached.updateTime) : cached;
+  if (expect && cur.updateTime !== expect) throw await conflictError(cur, a);
+  if (!cur.updateTime) throw new Error("Cannot verify this order's latest version. Refresh and try again.");
+  return cur;
+}
+
+async function saveAction(cur, changes, fields, a) {
+  try {
+    await conditionalPatch(cur, changes, fields);
+  } catch (error) {
+    if (!CONFLICT_CODES.includes(error.code) && error.code !== "NOT_FOUND") throw error;
+    throw await conflictError(await freshForChange(cur.id, cur.updateTime), a);
+  }
+}
+
+async function remove({ id, expect }) {
+  const a = await getAuth();
+  if (!a) throw new Error("Not signed in.");
+  const cur = await actionContact(id, expect, a);
+  if (cur.status === "paid") throw new Error("Paid warranty entries cannot be archived.");
+  if (cur.status === "not_contacted") throw new Error("Unclaimed orders cannot be archived.");
+  if (cur.hidden) throw new Error("This order is already archived.");
+  const now = Date.now();
+  await saveAction(cur, {
+    hidden: true,
+    archivedAt: now,
+    statusSince: statusStart(cur, now),
+    updatedAt: now,
+  }, ["hidden", "archivedAt", "statusSince", "updatedAt"], a);
+}
+
+async function restore({ id, expect }) {
+  const a = await getAuth();
+  if (!a) throw new Error("Not signed in.");
+  const cur = await actionContact(id, expect, a);
+  if (!cur.hidden || cur.status === "not_contacted")
+    throw new Error("This order is not archived.");
+  const now = Date.now();
+  await saveAction(cur, {
+    hidden: false,
+    archivedAt: 0,
+    statusSince: now,
+    updatedAt: now,
+  }, ["hidden", "archivedAt", "statusSince", "updatedAt"], a);
 }
 
 async function unclaim({ id, expect }) {
   const a = await getAuth();
   if (!a) throw new Error("Not signed in.");
-  const cached = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY]?.items?.[id];
-  if (!cached) throw new Error("Order not found. Refresh and try again.");
-  const cur = !expect || cached.updateTime !== expect ? await fetchOne(id) : cached;
-  if (expect && cur.updateTime !== expect) throw await conflictError(cur, a);
-  if (!cur.updateTime) throw new Error("Cannot verify this order's latest version. Refresh and try again.");
+  const cur = await actionContact(id, expect, a);
   if (cur.status === "not_contacted") throw new Error("This order is already unclaimed.");
   if (cur.uid !== a.uid) throw new Error(`Only ${cur.by || "the owner"} can unclaim this order.`);
-  const contact = { ...cur, status: "not_contacted", hidden: true, updatedAt: Date.now() };
-  try {
-    contact.updateTime = await writeDoc(contact, {
-      fields: ["status", "hidden", "updatedAt"],
-      expect: cur.updateTime,
-    });
-  } catch (error) {
-    if (!CONFLICT_CODES.includes(error.code)) throw error;
-    throw await conflictError(await fetchOne(id), a);
-  }
-  await patchCache((items) => {
-    items[id] = contact;
-  });
+  const now = Date.now();
+  await saveAction(cur, {
+    status: "not_contacted", hidden: true, archivedAt: 0, statusSince: now, updatedAt: now,
+  }, ["status", "hidden", "archivedAt", "statusSince", "updatedAt"], a);
 }
 
 // Admin only: deletes phone/email/customer/price from every Firestore document.
@@ -688,7 +881,8 @@ const handlers = {
   scrub,
   importPrivate,
   enrich,
-  remove: ({ id }) => remove(id),
+  remove,
+  restore,
   unclaim,
   refresh: (p) => refreshContacts(!!p?.force),
 };
@@ -707,15 +901,24 @@ function setupAlarm() {
   chrome.alarms.create("wt-poll", {
     periodInMinutes: Math.max(0.5, CFG.pollSeconds / 60),
   });
+  chrome.alarms.create("wt-retention", { periodInMinutes: 60 });
 }
 chrome.runtime.onInstalled.addListener(setupAlarm);
 chrome.runtime.onStartup.addListener(setupAlarm);
 chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name !== "wt-poll") return;
+  if (alarm.name !== "wt-poll" && alarm.name !== "wt-retention") return;
   // Skip background polls while the user is away; the next page load or panel open catches up.
-  const state = chrome.idle ? await chrome.idle.queryState(300) : "active";
-  if (state !== "active") return;
-  if (await getAuth()) refreshContacts(true).catch(() => {});
+  if (alarm.name === "wt-poll") {
+    const state = chrome.idle ? await chrome.idle.queryState(300) : "active";
+    if (state !== "active") return;
+  }
+  if (await getAuth()) {
+    try {
+      await refreshContacts(true);
+    } catch (error) {
+      console.error("[Dashboard Tool] Warranty sync and retention failed:", error);
+    }
+  }
 });
 chrome.runtime.onInstalled.addListener(() =>
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }),

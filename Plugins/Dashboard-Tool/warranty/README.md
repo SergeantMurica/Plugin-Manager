@@ -9,17 +9,44 @@ this, so a Shopify page can never start a claim.
 
 Once an order is claimed, click its Shopify badge to change its status,
 including **Called** and **Emailed**. The warranty team log also offers these
-statuses in each order's status menu.
+statuses in each order's status menu. An archived tracker entry remains claimed:
+changing its status on Shopify or Dash restores it to the active log without
+changing its owner.
 
 The order's owner can choose **Unclaim · Not contacted** in either menu. This
 removes the order from the team log and shows **Not contacted** on Shopify;
 another teammate can then claim it under their own name from its Dash lead.
-Unclaiming is distinct from removing an order from the list with the × button,
-which keeps it marked as contacted on Shopify.
+Unclaiming is distinct from archiving with the × button. Archived orders remain
+marked as contacted on Shopify and can be found under **Archived** in the team
+log. Use **Restore** to return an entry to the active log and restart its status
+timer.
 
 Unclaimed orders remain as hidden shared records so incremental synchronization
-can update other devices. Teammates need the updated extension to recognize
-the Called, Emailed, and Not contacted statuses.
+can update other devices; they are not included in the archive.
+
+## Retention
+
+- **Texted**, **Called**, and **Emailed** entries are archived after 30 days in
+  their current status. Changing between these statuses restarts the timer;
+  saving the same status does not. Other statuses are not automatically archived.
+- An archived tracker entry is permanently deleted after 60 days unless it is
+  restored or its status is updated. The archive shows its deletion date.
+- The warranty tracker's **Paid** status is never archived or automatically
+  deleted, and the archive button is unavailable for it. Previously hidden
+  Paid entries are restored. This is separate from Shopify's payment status.
+- The first updated extension to see an older archive without a reliable archive
+  date starts a fresh 60-day grace period. Changes from older extension versions
+  can also restart a timer conservatively, so all teammates should update.
+
+Deletion removes the shared tracker entry and its cached, device-local customer
+details as devices synchronize. It does **not** delete the Shopify order or
+copies in drafts, exported files, or backups. Records with unsupported statuses
+are excluded from automatic retention. Checks run while Chrome is open and a
+user is signed in, including an hourly check while idle; anything due while
+everyone is offline is processed at the next check. Firestore rules must allow
+the signed-in user to update `statusSince`, `archivedAt`, and
+`retentionUpdatedAt` and to delete tracker documents. Sync errors are reported
+in the panel and background errors are logged.
 
 Run the warranty tests from the repository root:
 

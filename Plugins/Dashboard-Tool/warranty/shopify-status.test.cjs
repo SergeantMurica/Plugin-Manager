@@ -38,7 +38,7 @@ test("Shopify badge updates claimed orders but cannot start a claim", async () =
   const state = {
     wtAuth: { uid: "u1" },
     wtContacts: { items: {
-      MPC12345: { id: "MPC12345", order: "MPC12345", by: "Alex", uid: "u1", status: "texted", ts: 1, updateTime: "v0" },
+      MPC12345: { id: "MPC12345", order: "MPC12345", by: "Alex", uid: "u1", status: "texted", ts: 1, hidden: true, updateTime: "v0" },
     } },
   };
   const changes = [];
@@ -89,8 +89,10 @@ test("Shopify badge updates claimed orders but cannot start a claim", async () =
   await flush();
   const badge = link.nextElementSibling;
   assert.equal(badge.textContent, "Texted: Alex");
+  assert.match(badge.title, /archived.*changing status restores/i);
   badge.click();
   let menu = body.children.at(-1);
+  assert.match(menu.children.find((child) => child.className === "wt-menu-note").textContent, /archived.*restores/i);
   const labels = menu.children.map((child) => child.textContent);
   assert.ok(labels.includes("Mark Called"));
   assert.ok(labels.includes("Mark Emailed"));
@@ -111,4 +113,13 @@ test("Shopify badge updates claimed orders but cannot start a claim", async () =
   menu = body.children.at(-1);
   assert.ok(!menu.children.some((child) => child.tagName === "BUTTON"));
   assert.match(menu.children.find((child) => child.className === "wt-menu-note").textContent, /Pound list lead on Dash/);
+});
+
+test("custom builds quote a flat $270 3-year plan, per PC on mixed orders", async () => {
+  const { pathToFileURL } = require("node:url");
+  const { warrantyPrices } = await import(pathToFileURL(path.join(__dirname, "..", "outreach", "lib", "scripts.js")));
+  assert.deepEqual(warrantyPrices("5000", false, "", true), { two: "$320", three: "$270", known: true });
+  assert.deepEqual(warrantyPrices("5000", false, ""), { two: "$320", three: "$480", known: true });
+  assert.deepEqual(warrantyPrices("", false, "c1500,3000"), { two: "$420 for both PCs", three: "$590 for both PCs", known: true });
+  assert.deepEqual(warrantyPrices("2000", true, "", true), { two: "$499", three: "$799", known: true });
 });

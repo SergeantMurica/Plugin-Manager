@@ -17,6 +17,7 @@ const CACHE_KEY = "wtContacts";
 const AUTH_KEY = "wtAuth";
 const DRAFT_KEY = "wtDraft";
 const PRIVATE_KEY = "wtPrivate";
+const ARCHIVE_RETENTION_MS = 60 * 24 * 60 * 60 * 1000;
 let dashLeads = {};
 const STATUSES = [
   "texted",
@@ -67,6 +68,7 @@ const els = {
   name: $("name"),
   systemPrice: $("systemPrice"),
   watercooled: $("watercooled"),
+  custom: $("custom"),
   hint: $("hint"),
   error: $("error"),
   clear: $("clear"),
@@ -97,31 +99,37 @@ const PRICES = {
   ],
 };
 const WATERCOOLED_PRICES = { 2: 499, 3: 799 };
+const CUSTOM_PRICES = { 3: 270 };
 const MAX_PRICED_TOTAL = 12000;
 const MANAGER_NOTE = "{manager to calculate}";
-const priceFor = (years, total) =>
-  total > MAX_PRICED_TOTAL
-    ? null
-    : PRICES[years].find(([max]) => total <= max)[1];
-const priceText = (years, total) => {
-  const p = priceFor(years, total);
+const priceFor = (years, total, custom = false) =>
+  custom && CUSTOM_PRICES[years]
+    ? CUSTOM_PRICES[years]
+    : total > MAX_PRICED_TOTAL
+      ? null
+      : PRICES[years].find(([max]) => total <= max)[1];
+const priceText = (years, total, custom) => {
+  const p = priceFor(years, total, custom);
   return p === null ? MANAGER_NOTE : `$${p}`;
 };
 
-// Per-PC prices read from the Shopify order ("1149,1299"); "manual" or blank means use systemPrice.
-const pcPrices = (systems) =>
+// Per-PC prices read from the Shopify order ("c1149,1299"; "c" = custom build); "manual" or blank means use systemPrice.
+const pcList = (systems) =>
   String(systems || "")
     .split(",")
-    .map(Number)
-    .filter((n) => Number.isFinite(n) && n > 0);
+    .map((s) => s.trim().match(/^(c?)(\d+(?:\.\d+)?)$/i))
+    .filter((m) => m && Number(m[2]) > 0)
+    .map((m) => ({ amount: Number(m[2]), custom: !!m[1] }));
+const pcPrices = (systems) => pcList(systems).map((p) => p.amount);
 
-function scriptContext(customer, systemPrice, watercooled = false, systems = "") {
+function scriptContext(customer, systemPrice, watercooled = false, systems = "", custom = false) {
   const total = parseFloat(String(systemPrice).replace(/[^0-9.]/g, ""));
   const known = Number.isFinite(total);
-  const pcs = pcPrices(systems);
+  const pcs = pcList(systems);
+  const singleCustom = custom || (pcs.length === 1 && pcs[0].custom);
   // Each PC gets its own warranty, so a multi-PC order is quoted as the sum of per-PC prices.
   const multiTier = (years) => {
-    const each = pcs.map((p) => (watercooled ? WATERCOOLED_PRICES[years] : priceFor(years, p)));
+    const each = pcs.map((p) => (watercooled ? WATERCOOLED_PRICES[years] : priceFor(years, p.amount, p.custom)));
     if (each.includes(null)) return MANAGER_NOTE;
     const who = pcs.length === 2 ? "both PCs" : `all ${pcs.length} PCs`;
     return `$${each.reduce((s, p) => s + p, 0).toLocaleString()} for ${who}`;
@@ -131,9 +139,11 @@ function scriptContext(customer, systemPrice, watercooled = false, systems = "")
       ? multiTier(years)
       : watercooled
         ? `$${WATERCOOLED_PRICES[years]}`
-        : known
-          ? priceText(years, total)
-          : `{${years} year}`;
+        : singleCustom && CUSTOM_PRICES[years]
+          ? `$${CUSTOM_PRICES[years]}`
+          : known
+            ? priceText(years, total)
+            : `{${years} year}`;
   const first = String(customer || "")
     .trim()
     .split(/\s+/)[0];
@@ -144,7 +154,7 @@ function scriptContext(customer, systemPrice, watercooled = false, systems = "")
     three: tier(3),
     build:
       pcs.length > 1
-        ? `a $${Math.round(pcs.reduce((s, p) => s + p, 0)).toLocaleString()} order`
+        ? `a $${Math.round(pcs.reduce((s, p) => s + p.amount, 0)).toLocaleString()} order`
         : known
           ? `a $${Math.round(total).toLocaleString()} build`
           : "your build",
@@ -156,7 +166,7 @@ async function copyScript(e, button, stage = stageFor(e.status), save = true) {
   const variant =
     variantById(e.variant) ||
     (e.status === "texted" ? randomVariant() : fallbackVariant(e.id));
-  const ctx = scriptContext(e.customer, e.systemPrice, e.watercooled === "yes", e.systems);
+  const ctx = scriptContext(e.customer, e.systemPrice, e.watercooled === "yes", e.systems, e.custom === "yes");
   await navigator.clipboard.writeText(variant[stage](ctx));
   const label = button.textContent;
   button.textContent = "✓";
@@ -181,8 +191,13 @@ async function copyScript(e, button, stage = stageFor(e.status), save = true) {
 let auth = null;
 let entries = []; // every record, including hidden ones (used for duplicate checks)
 const listed = () => entries.filter((e) => !e.hidden);
+const archived = () => entries.filter((e) => e.hidden && e.status !== "not_contacted");
+const archiveTime = (e) =>
+  e.statusValid !== false && Number.isSafeInteger(e.archivedAt) && e.archivedAt > 0 &&
+  e.updatedAt > 0 && e.retentionUpdatedAt === e.updatedAt ? e.archivedAt : 0;
 let ownerFilter = "all";
 let statusFilter = null;
+let showArchived = false;
 let signUpMode = false;
 let editing = false;
 
@@ -329,6 +344,7 @@ function saveDraft() {
     name: els.name.value,
     systemPrice: els.systemPrice.value,
     watercooled: els.watercooled.checked,
+    custom: els.custom.checked,
   };
   const hasAny =
     draft.phone ||
@@ -336,7 +352,8 @@ function saveDraft() {
     draft.order ||
     draft.name ||
     draft.systemPrice ||
-    draft.watercooled;
+    draft.watercooled ||
+    draft.custom;
   els.clear.hidden = !unified && !hasAny;
   if (hasAny) chrome.storage.local.set({ [DRAFT_KEY]: draft });
   else chrome.storage.local.remove(DRAFT_KEY);
@@ -373,11 +390,11 @@ function updateHint() {
 
 // ---------- render ----------
 function renderTabs() {
-  const visible = listed();
-  const mine = visible.filter((e) => e.uid === auth?.uid);
-  const counts = { all: visible.length, mine: mine.length };
-  // Status counts follow the All / Me filter so they add up to the selected total.
-  const scope = ownerFilter === "mine" ? mine : visible;
+  const active = listed();
+  const mine = active.filter((e) => e.uid === auth?.uid);
+  const archive = archived();
+  const counts = { all: active.length, mine: mine.length, archived: archive.length };
+  const scope = showArchived ? archive : ownerFilter === "mine" ? mine : active;
   for (const s of STATUSES)
     counts[s] = scope.filter((e) => e.status === s).length;
   const tab = (key, label, full = label, selected = false) => {
@@ -396,8 +413,15 @@ function renderTabs() {
     n.textContent = counts[key];
     b.append(name, n);
     b.addEventListener("click", () => {
-      if (key === "all" || key === "mine") ownerFilter = key;
-      else statusFilter = statusFilter === key ? null : key;
+      if (key === "archived") {
+        if (!showArchived) statusFilter = null;
+        showArchived = true;
+        ownerFilter = "all";
+      } else if (key === "all" || key === "mine") {
+        if (showArchived) statusFilter = null;
+        showArchived = false;
+        ownerFilter = key;
+      } else statusFilter = statusFilter === key ? null : key;
       render();
     });
     return b;
@@ -405,8 +429,9 @@ function renderTabs() {
   const main = document.createElement("div");
   main.className = "tabs-main";
   main.append(
-    tab("all", "All", "All", ownerFilter === "all"),
-    tab("mine", "Me", "Me", ownerFilter === "mine"),
+    tab("all", "All", "All", !showArchived && ownerFilter === "all"),
+    tab("mine", "Me", "Me", !showArchived && ownerFilter === "mine"),
+    tab("archived", "Archived", "Archived; deleted after 60 days", showArchived),
   );
   const grid = document.createElement("div");
   grid.className = "tabs-status";
@@ -455,7 +480,7 @@ function render() {
   editing = false;
   const q = els.search.value.trim().toLowerCase();
   const qd = digits(q);
-  const visible = listed();
+  const visible = showArchived ? archived() : listed();
   const shown = visible
     .filter((e) => ownerFilter === "all" || e.uid === auth?.uid)
     .filter((e) => !statusFilter || e.status === statusFilter)
@@ -468,20 +493,22 @@ function render() {
         (e.email || "").toLowerCase().includes(q) ||
         e.by.toLowerCase().includes(q),
     )
-    .sort((a, b) => b.ts - a.ts);
+    .sort((a, b) => showArchived
+      ? (b.archivedAt || b.updatedAt || b.ts) - (a.archivedAt || a.updatedAt || a.ts)
+      : b.ts - a.ts);
 
-  els.count.textContent = `${visible.length} logged`;
+  els.count.textContent = `${visible.length} ${showArchived ? "archived" : "logged"}`;
   renderTabs();
   if (!els.stats.hidden) renderStats();
   els.list.replaceChildren();
   els.empty.hidden = shown.length > 0;
-  els.empty.textContent = visible.length
-    ? "No matches."
+  els.empty.textContent = visible.length ? "No matches." : showArchived
+    ? "No archived orders."
     : "Nothing logged yet. Log the first order above.";
 
   let lastDay = null;
   for (const e of shown) {
-    const day = dayLabel(e.ts);
+    const day = dayLabel(showArchived ? e.archivedAt || e.updatedAt || e.ts : e.ts);
     if (day !== lastDay) {
       const h = document.createElement("div");
       h.className = "day";
@@ -525,11 +552,22 @@ function render() {
       wc.className = "tag";
       wc.textContent = "Watercooled";
       meta.append(wc);
+    } else if (e.custom === "yes" || pcList(e.systems).some((p) => p.custom)) {
+      const custom = document.createElement("span");
+      custom.className = "tag";
+      custom.textContent = "Custom";
+      meta.append(custom);
     }
     if (e.phone) meta.append(copyButton(e.phone, prettyPhone(e.phone), true));
     if (e.email) meta.append(copyButton(e.email, e.email));
     const t = document.createElement("span");
-    t.textContent = fmtTime(e.ts);
+    t.textContent = showArchived
+      ? archiveTime(e)
+        ? `Archived ${fmtDate(e.archivedAt)} · Deletes ${fmtDate(e.archivedAt + ARCHIVE_RETENTION_MS)}`
+        : e.statusValid === false
+          ? "Archived · retention paused for an unsupported status"
+        : "Archived · deletion date pending"
+      : fmtTime(e.ts);
     meta.append(t);
 
     const side = document.createElement("div");
@@ -558,7 +596,7 @@ function render() {
     const chip = document.createElement("select");
     chip.className = "chip";
     chip.dataset.status = e.status;
-    chip.title = "Change status";
+    chip.title = e.hidden ? "Change status and restore this order" : "Change status";
     chip.setAttribute("aria-label", `Status for ${e.order}`);
     for (const s of STATUSES) {
       const o = document.createElement("option");
@@ -607,22 +645,33 @@ function render() {
       }
     });
 
-    const del = document.createElement("button");
-    del.type = "button";
-    del.className = "del";
-    del.textContent = "×";
-    del.title = "Remove";
-    del.setAttribute("aria-label", `Remove ${e.order}`);
-    del.addEventListener("click", async () => {
-      if (
-        !confirm(
-          `Remove ${e.order} from the list? It stays on record so the order still shows as contacted on Shopify.`,
-        )
-      )
-        return;
-      const r = await send("remove", { id: e.id });
-      if (!r.ok) showError(els.error, r.error);
-    });
+    let archiveAction = null;
+    if (e.hidden) {
+      archiveAction = document.createElement("button");
+      archiveAction.type = "button";
+      archiveAction.className = "link";
+      archiveAction.textContent = "Restore";
+      archiveAction.title = "Restore to the active log and restart its status timer";
+      archiveAction.setAttribute("aria-label", `Restore ${e.order}`);
+      archiveAction.addEventListener("click", async () => {
+        const r = await send("restore", { id: e.id, expect: e.updateTime || "" });
+        if (!r.ok) showError(els.error, r.error);
+      });
+    } else if (e.status !== "paid") {
+      archiveAction = document.createElement("button");
+      archiveAction.type = "button";
+      archiveAction.className = "del";
+      archiveAction.textContent = "×";
+      archiveAction.title = "Archive";
+      archiveAction.setAttribute("aria-label", `Archive ${e.order}`);
+      archiveAction.addEventListener("click", async () => {
+        if (!confirm(
+          `Archive ${e.order}? Its tracker entry will be permanently deleted after 60 days unless restored. The Shopify order will not be deleted.`,
+        )) return;
+        const r = await send("remove", { id: e.id, expect: e.updateTime || "" });
+        if (!r.ok) showError(els.error, r.error);
+      });
+    }
 
     const edit = document.createElement("button");
     edit.type = "button";
@@ -662,6 +711,14 @@ function render() {
       wcIn.type = "checkbox";
       wcIn.checked = e.watercooled === "yes";
       wcLabel.append(wcIn, "Watercooled");
+      const customLabel = document.createElement("label");
+      customLabel.className = "toggle";
+      customLabel.title = "Custom build pricing: 3-yr $270";
+      const customIn = document.createElement("input");
+      customIn.type = "checkbox";
+      const initialCustom = e.custom === "yes" || (pcList(e.systems).length > 0 && pcList(e.systems).every((p) => p.custom));
+      customIn.checked = initialCustom;
+      customLabel.append(customIn, "Custom build");
       const save = document.createElement("button");
       save.type = "button";
       save.className = "primary";
@@ -674,9 +731,12 @@ function render() {
       const submit = async () => {
         save.disabled = true;
         const wc = wcIn.checked ? "yes" : "";
+        const custom = customIn.checked ? "yes" : "";
         // A hand-typed price/flag replaces the per-PC breakdown and stops the order page re-filling it.
         const changed =
-          priceIn.value !== (e.systemPrice || "") || wc !== (e.watercooled === "yes" ? "yes" : "");
+          priceIn.value !== (e.systemPrice || "") ||
+          wc !== (e.watercooled === "yes" ? "yes" : "") ||
+          customIn.checked !== initialCustom;
         const r = await send("updateDetails", {
           id: e.id,
           customer: capitalizeName(nameIn.value.trim()),
@@ -684,6 +744,7 @@ function render() {
           email: emailIn.value.trim(),
           systemPrice: priceIn.value,
           watercooled: wc,
+          custom,
           ...(changed ? { systems: "manual" } : {}),
         });
         if (!r.ok) {
@@ -700,7 +761,7 @@ function render() {
           else if (k.key === "Escape") closeEdit();
         });
       }
-      form.append(nameIn, phoneIn, emailIn, priceIn, wcLabel, save, cancel);
+      form.append(nameIn, phoneIn, emailIn, priceIn, wcLabel, customLabel, save, cancel);
       row.append(form);
       edit.disabled = true;
       editing = true;
@@ -718,7 +779,8 @@ function render() {
     script.setAttribute("aria-label", `${STAGE_TITLE[stage]} for ${e.order}`);
     script.addEventListener("click", () => copyScript(e, script));
 
-    side.append(chip, script, edit, del);
+    side.append(chip, script, edit);
+    if (archiveAction) side.append(archiveAction);
     row.append(title, meta, side);
     els.list.append(row);
   }
@@ -784,6 +846,7 @@ for (const input of [
   els.name,
   els.systemPrice,
   els.watercooled,
+  els.custom,
 ]) {
   input.addEventListener("input", () => {
     showError(els.error, "");
@@ -827,7 +890,7 @@ els.form.addEventListener("submit", async (ev) => {
     byOrder &&
     !confirm(
       byOrder.hidden
-        ? `${capitalizeName(byOrder.by)} contacted this order before but removed it. Take it over as yours?`
+        ? `${capitalizeName(byOrder.by)} contacted this archived order. Mark it Texted and restore it? It stays under ${capitalizeName(byOrder.by)}'s name.`
         : `${capitalizeName(byOrder.by)} already contacted this order. Mark it Texted? It stays under ${capitalizeName(byOrder.by)}'s name.`,
     )
   )
@@ -840,6 +903,7 @@ els.form.addEventListener("submit", async (ev) => {
     customer: capitalizeName(els.name.value.trim()),
     systemPrice: els.systemPrice.value.trim(),
     watercooled: els.watercooled.checked ? "yes" : "",
+    custom: els.custom.checked ? "yes" : "",
     status: "texted",
     expect: savedOrder ? savedOrder.updateTime || "" : null,
   });
@@ -852,6 +916,7 @@ els.form.addEventListener("submit", async (ev) => {
   updateHint();
   ownerFilter = "all";
   statusFilter = null;
+  showArchived = false;
   els.order.focus();
 });
 
@@ -867,6 +932,7 @@ els.export.addEventListener("click", () => {
       "Customer",
       "System price",
       "Watercooled",
+      "Custom build",
       "Status",
       "Script tone",
       "Declined follow-up sent",
@@ -882,6 +948,7 @@ els.export.addEventListener("click", () => {
       e.customer,
       e.systemPrice,
       e.watercooled === "yes" ? "Yes" : "",
+      e.custom === "yes" ? "Yes" : "",
       STATUS_LABEL[e.status],
       variantById(e.variant)?.name || "",
       e.overcome ? "Yes" : "",
@@ -944,16 +1011,18 @@ els.importFile.addEventListener("change", async () => {
   } else {
     const [head = [], ...body] = parseCsv(text);
     const col = (name) => head.findIndex((h) => h.trim().toLowerCase() === name);
-    const idx = { order: col("order"), phone: col("phone"), email: col("email"), customer: col("customer"), systemPrice: col("system price"), watercooled: col("watercooled") };
+    const idx = { order: col("order"), phone: col("phone"), email: col("email"), customer: col("customer"), systemPrice: col("system price"), watercooled: col("watercooled"), custom: col("custom build") };
     if (idx.order < 0) return alert("CSV needs an Order column.");
     const cell = (r, i) => (i < 0 ? "" : r[i]);
+    const yes = (v) => (/^(y|yes|true|1)$/i.test(String(v || "").trim()) ? "yes" : "");
     rows = body.map((r) => ({
       order: r[idx.order],
       phone: cell(r, idx.phone),
       email: cell(r, idx.email),
       customer: cell(r, idx.customer),
       systemPrice: cell(r, idx.systemPrice),
-      watercooled: /^(y|yes|true|1)$/i.test(String(cell(r, idx.watercooled) || "").trim()) ? "yes" : "",
+      watercooled: yes(cell(r, idx.watercooled)),
+      custom: yes(cell(r, idx.custom)),
     }));
   }
   const r = await send("importPrivate", { rows });
@@ -988,6 +1057,7 @@ async function backupData() {
         email: e.email || "",
         systemPrice: e.systemPrice || "",
         watercooled: e.watercooled === "yes",
+        custom: e.custom === "yes",
       })),
   };
 }
@@ -1079,6 +1149,7 @@ if (unified) {
   const pricing = () => {
     els.systemPrice.disabled = els.watercooled.checked;
     document.getElementById("fixedWarrantyPrice").hidden = !els.watercooled.checked;
+    document.getElementById("customWarrantyPrice").hidden = els.watercooled.checked || !els.custom.checked;
   };
   document.addEventListener("dashboard:customer-changed", () => {
     updateHint();
@@ -1086,6 +1157,7 @@ if (unified) {
     pricing();
   });
   els.watercooled.addEventListener("change", pricing);
+  els.custom.addEventListener("change", pricing);
   pricing();
 }
 
@@ -1098,6 +1170,7 @@ export const ready = (async () => {
   els.name.value = capitalizeName(draft.name || "");
   els.systemPrice.value = draft.systemPrice || "";
   els.watercooled.checked = !!draft.watercooled;
+  els.custom.checked = !!draft.custom;
   if (unified) els.watercooled.dispatchEvent(new Event("change"));
   els.clear.hidden = !unified && !(
     draft.phone ||
@@ -1105,7 +1178,8 @@ export const ready = (async () => {
     draft.order ||
     draft.name ||
     draft.systemPrice ||
-    draft.watercooled
+    draft.watercooled ||
+    draft.custom
   );
   await load();
   if (backup.supported) {
@@ -1115,5 +1189,7 @@ export const ready = (async () => {
   }
   renderBackup();
   (auth ? els.order : els.authEmail).focus();
-  if (auth) send("refresh");
+  if (auth) send("refresh").then((result) => {
+    if (!result.ok) showError(els.error, `Warranty sync failed: ${result.error}`);
+  });
 })();

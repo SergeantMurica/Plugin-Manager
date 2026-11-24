@@ -1,5 +1,8 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
 const model = require("./notes-model.js");
 
 const base = {
@@ -97,6 +100,18 @@ test("SO# search accepts numeric and prefixed orders, including orders not loade
   for (const value of ["", "MPC2190", "2190/other", "../2190", "https://example.com", "2190?x=1", "-2190"]) {
     assert.throws(() => model.orderSearchPath(value), /Enter a numeric SO#/);
   }
+});
+
+test("run notes sync stays safe on non-My-Runs Dash pages", () => {
+  const source = fs.readFileSync(path.join(__dirname, "content.js"), "utf8");
+  const sync = source.match(/function sync\(\) \{[\s\S]*?\n  const observer =/);
+  assert.ok(sync);
+  const context = vm.createContext({
+    location: { pathname: "/wl/item/WL-9532" },
+    document: { querySelector: () => null },
+    mounted: undefined,
+  });
+  assert.doesNotThrow(() => vm.runInContext(`${sync[0].replace(/\n  const observer =$/, "")}\nsync();`, context));
 });
 
 test("orders runs oldest to newest regardless of source order without mutating input", () => {

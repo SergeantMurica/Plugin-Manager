@@ -232,6 +232,9 @@ input.flag {
   border-bottom: 1px solid var(--line);
   border-radius: 0;
 }
+.log .tabs-main {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
 .tabs-status {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

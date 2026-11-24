@@ -5,7 +5,10 @@ export const sharedFieldIds = {
   order: "order",
   systemPrice: "systemPrice",
   watercooled: "watercooled",
+  custom: "custom",
 };
+
+const CHECKBOXES = ["watercooled", "custom"];
 
 export function draftConflicts(draft, lead) {
   const normalize = (key, value) => {
@@ -15,7 +18,7 @@ export function draftConflicts(draft, lead) {
     return text.toLocaleLowerCase();
   };
   return Object.keys(sharedFieldIds).some((key) => {
-    if (key === "watercooled") return !!draft[key] && !lead[key];
+    if (CHECKBOXES.includes(key)) return !!draft[key] && !lead[key];
     const value = normalize(key, draft[key]);
     return value && value !== normalize(key, lead[key]);
   });
@@ -24,7 +27,7 @@ export function draftConflicts(draft, lead) {
 export function readCustomer() {
   return Object.fromEntries(Object.entries(sharedFieldIds).map(([key, id]) => {
     const field = document.getElementById(id);
-    return [key, key === "watercooled" ? field.checked : field.value];
+    return [key, CHECKBOXES.includes(key) ? field.checked : field.value];
   }));
 }
 

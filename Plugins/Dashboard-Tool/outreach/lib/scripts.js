@@ -34,10 +34,15 @@ const PRICES = {
   ],
 };
 const WATERCOOLED = { 2: 499, 3: 799 };
-export function warrantyPrices(systemPrice, watercooled, systems = "") {
-  const pcs = String(systems).split(",").map(Number).filter((n) => Number.isFinite(n) && n > 0);
+const CUSTOM = { 3: 270 };
+// systems: per-PC prices from Shopify, "c" prefix = custom build (e.g. "c1149,1299").
+export function warrantyPrices(systemPrice, watercooled, systems = "", custom = false) {
+  const pcs = String(systems)
+    .split(",")
+    .map((s) => s.trim().match(/^(c?)(\d+(?:\.\d+)?)$/i))
+    .filter((m) => m && Number(m[2]) > 0);
   if (pcs.length > 1) {
-    const quotes = pcs.map((price) => warrantyPrices(price, watercooled));
+    const quotes = pcs.map((m) => warrantyPrices(m[2], watercooled, "", !!m[1]));
     if (quotes.some((quote) => !quote.known))
       return { two: "{manager to calculate}", three: "{manager to calculate}", known: false };
     const total = (key) => quotes.reduce((sum, quote) => sum + Number(quote[key].slice(1)), 0);
@@ -45,11 +50,19 @@ export function warrantyPrices(systemPrice, watercooled, systems = "") {
     return { two: `$${total("two")} for ${who}`, three: `$${total("three")} for ${who}`, known: true };
   }
   if (watercooled) return { two: `$${WATERCOOLED[2]}`, three: `$${WATERCOOLED[3]}`, known: true };
+  const isCustom = !!custom || !!pcs[0]?.[1];
   const total = parseFloat(String(systemPrice || "").replace(/[^0-9.]/g, ""));
-  if (!Number.isFinite(total)) return { two: "{2-year price}", three: "{3-year price}", known: false };
-  if (total > 12000) return { two: "{manager to calculate}", three: "{manager to calculate}", known: false };
-  const pick = (y) => `$${PRICES[y].find(([max]) => total <= max)[1]}`;
-  return { two: pick(2), three: pick(3), known: true };
+  const pick = (y) =>
+    isCustom && CUSTOM[y]
+      ? `$${CUSTOM[y]}`
+      : !Number.isFinite(total)
+        ? `{${y}-year price}`
+        : total > 12000
+          ? "{manager to calculate}"
+          : `$${PRICES[y].find(([max]) => total <= max)[1]}`;
+  const two = pick(2);
+  const three = pick(3);
+  return { two, three, known: !two.startsWith("{") && !three.startsWith("{") };
 }
 
 // ---------- texts (clear, conversational follow-ups) ----------
@@ -146,9 +159,9 @@ These optional plans can only be added before pickup or delivery. Would you like
       name: "Follow-up",
       body: (c) =>
         `${hello(c)} ${wording(c,
-          `Following up on optional coverage for ${orderRef(c)}: 2 years for ${c.two} or 3 for ${c.three}, available before pickup or delivery. Any questions I can answer?`,
-          `Have you had a chance to consider the warranty options? It's ${c.two} for 2 years or ${c.three} for 3. They can only be added before pickup or delivery, and keeping the included coverage is fine too.`,
-          `Any questions about extending the hardware coverage? Two years: ${c.two}; three: ${c.three}. Optional, before pickup or delivery.`,
+          `Quick heads-up on ${orderRef(c)}: extra hardware coverage can only be added before pickup or delivery. 2 years is ${c.two}, 3 years is ${c.three}. Want me to set one up?`,
+          `A lot of companies only pay out what you paid at purchase, not what a new GPU, RAM or SSD costs when one fails, so people get about half and a PC that won't boot. Our plans cover eligible repairs or replacements through our US team: ${c.two} for 2 years or ${c.three} for 3, available before pickup or delivery. Want one added?`,
+          `Last call for extra hardware coverage on ${orderRef(c)}: 2 years ${c.two}, 3 years ${c.three}. Add it before pickup or delivery?`,
         )}`,
     },
     {
